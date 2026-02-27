@@ -86,7 +86,7 @@ def _download_audio_sync(
 
     ydl_opts: dict[str, Any] = {
         "format": "bestaudio/best",
-        "outtmpl": str(output_dir / filename),
+        "outtmpl": str(output_dir / filename) + ".%(ext)s",
         "postprocessors": postprocessors,
         "quiet": True,
     }
