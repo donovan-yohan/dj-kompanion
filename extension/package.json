@@ -1,0 +1,20 @@
+{
+  "name": "yt-dlp-dj-extension",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/popup.ts src/background.ts src/options.ts --bundle --outdir=dist",
+    "lint": "eslint src/",
+    "format": "prettier --write src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.37",
+    "@typescript-eslint/eslint-plugin": "^8",
+    "@typescript-eslint/parser": "^8",
+    "esbuild": "^0.24",
+    "eslint": "^9",
+    "prettier": "^3",
+    "typescript": "^5"
+  }
+}

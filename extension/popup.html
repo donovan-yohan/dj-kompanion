@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>yt-dlp-dj</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>yt-dlp-dj</h1>
+    </header>
+
+    <!-- Initial state -->
+    <section id="section-initial">
+      <p id="server-status" class="status">Checking server...</p>
+      <p class="url-display">
+        <span class="label">URL:</span>
+        <span id="current-url" class="url-text"></span>
+      </p>
+      <button id="btn-fetch" class="btn btn-primary">Fetch Metadata</button>
+    </section>
+
+    <!-- Loading state -->
+    <section id="section-loading" hidden>
+      <p class="loading-text">Fetching metadata...</p>
+      <div class="spinner" aria-label="Loading"></div>
+    </section>
+
+    <!-- Preview / Edit state -->
+    <section id="section-preview" hidden>
+      <form id="metadata-form" autocomplete="off">
+        <div class="field-row">
+          <label for="field-artist">Artist</label>
+          <input id="field-artist" type="text" />
+        </div>
+        <div class="field-row">
+          <label for="field-title">Title</label>
+          <input id="field-title" type="text" />
+        </div>
+        <div class="field-row">
+          <label for="field-genre">Genre</label>
+          <input id="field-genre" type="text" />
+        </div>
+        <div class="field-row">
+          <label for="field-year">Year</label>
+          <input id="field-year" type="text" inputmode="numeric" />
+        </div>
+        <div class="field-row">
+          <label for="field-label">Label</label>
+          <input id="field-label" type="text" />
+        </div>
+        <div class="field-row">
+          <label for="field-energy">Energy</label>
+          <input id="field-energy" type="text" inputmode="numeric" />
+        </div>
+        <div class="field-row">
+          <label for="field-bpm">BPM</label>
+          <input id="field-bpm" type="text" inputmode="decimal" />
+        </div>
+        <div class="field-row">
+          <label for="field-key">Key</label>
+          <input id="field-key" type="text" />
+        </div>
+        <div class="field-row">
+          <label for="field-comment">Comment</label>
+          <input id="field-comment" type="text" />
+        </div>
+
+        <fieldset class="format-group">
+          <legend>Format</legend>
+          <label class="radio-label">
+            <input type="radio" name="format" value="best" checked /> Best
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="format" value="mp3" /> MP3
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="format" value="flac" /> FLAC
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="format" value="m4a" /> M4A
+          </label>
+        </fieldset>
+
+        <p id="enrichment-source" class="enrichment-info"></p>
+
+        <button id="btn-download" type="button" class="btn btn-primary">Download</button>
+      </form>
+    </section>
+
+    <!-- Downloading state -->
+    <section id="section-downloading" hidden>
+      <p class="loading-text">Downloading...</p>
+      <div class="spinner" aria-label="Downloading"></div>
+    </section>
+
+    <!-- Complete state -->
+    <section id="section-complete" hidden>
+      <p class="success-heading">&#10003; Downloaded!</p>
+      <p id="complete-title" class="complete-title"></p>
+      <p id="complete-path" class="complete-path"></p>
+      <button id="btn-another" class="btn btn-secondary">Download Another</button>
+    </section>
+
+    <!-- Error state -->
+    <section id="section-error" hidden>
+      <p class="error-heading">&#10007; Error</p>
+      <p id="error-message" class="error-message"></p>
+      <button id="btn-retry" class="btn btn-secondary">Try Again</button>
+    </section>
+
+    <script src="dist/popup.js"></script>
+  </body>
+</html>

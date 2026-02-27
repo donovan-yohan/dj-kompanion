@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>yt-dlp-dj Options</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --bg-alt: #f5f5f5;
+        --text: #1a1a1a;
+        --text-muted: #666666;
+        --border: #d0d0d0;
+        --accent: #2563eb;
+        --success: #16a34a;
+        --error: #dc2626;
+        --input-bg: #ffffff;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1e1e1e;
+          --bg-alt: #2a2a2a;
+          --text: #e8e8e8;
+          --text-muted: #999999;
+          --border: #444444;
+          --accent: #3b82f6;
+          --success: #22c55e;
+          --error: #f87171;
+          --input-bg: #2a2a2a;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+        background: var(--bg);
+        color: var(--text);
+        max-width: 480px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+
+      h1 {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      .subtitle {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-bottom: 24px;
+      }
+
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 5px;
+      }
+
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 14px;
+        background: var(--input-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        outline: none;
+        font-family: inherit;
+      }
+
+      input[type="text"]:focus,
+      input[type="number"]:focus {
+        border-color: var(--accent);
+      }
+
+      .hint {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+      }
+
+      button[type="submit"] {
+        display: inline-block;
+        padding: 8px 20px;
+        font-size: 14px;
+        font-weight: 500;
+        background: var(--accent);
+        color: #ffffff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-family: inherit;
+        margin-top: 8px;
+      }
+
+      button[type="submit"]:hover {
+        opacity: 0.9;
+      }
+
+      #status {
+        margin-top: 12px;
+        font-size: 13px;
+        min-height: 20px;
+      }
+
+      #status.success {
+        color: var(--success);
+      }
+
+      #status.error {
+        color: var(--error);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>yt-dlp-dj Options</h1>
+    <p class="subtitle">Configure the local server connection.</p>
+
+    <form id="options-form">
+      <div class="form-group">
+        <label for="host">Server Host</label>
+        <input id="host" type="text" value="localhost" />
+        <p class="hint">Usually localhost</p>
+      </div>
+
+      <div class="form-group">
+        <label for="port">Server Port</label>
+        <input id="port" type="number" min="1" max="65535" value="9234" />
+        <p class="hint">Default: 9234</p>
+      </div>
+
+      <button type="submit">Save</button>
+    </form>
+
+    <p id="status"></p>
+
+    <script src="dist/options.js"></script>
+  </body>
+</html>
