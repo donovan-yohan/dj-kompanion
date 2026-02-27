@@ -1,34 +1,30 @@
-import { fetchPreview, healthCheck, requestDownload } from "./api.js";
+import { fetchPreview, healthCheck, requestRetag } from "./api.js";
 import { getEl } from "./dom.js";
-import type { DownloadRequest, EnrichedMetadata, RawMetadata } from "./types.js";
-
-type PopupState = "initial" | "loading" | "preview" | "downloading" | "complete" | "error";
+import type { EnrichedMetadata, QueueItem, RawMetadata } from "./types.js";
 
 let currentUrl = "";
-let lastErrorMessage = "";
 let initialMetadata: EnrichedMetadata | null = null;
 let previewRaw: RawMetadata | null = null;
 
-function getInput(id: string): HTMLInputElement {
-  return getEl<HTMLInputElement>(id);
+// --- Queue storage helpers ---
+
+async function readQueue(): Promise<QueueItem[]> {
+  const data = await chrome.storage.local.get("queue");
+  return (data["queue"] as QueueItem[] | undefined) ?? [];
 }
 
-function render(state: PopupState): void {
-  const sections: Record<string, PopupState[]> = {
-    "section-initial": ["initial"],
-    "section-loading": ["loading"],
-    "section-preview": ["preview"],
-    "section-downloading": ["downloading"],
-    "section-complete": ["complete"],
-    "section-error": ["error"],
-  };
+async function writeQueue(queue: QueueItem[]): Promise<void> {
+  await chrome.storage.local.set({ queue });
+}
 
-  for (const [id, states] of Object.entries(sections)) {
-    const el = document.getElementById(id);
-    if (el) {
-      el.hidden = !states.includes(state);
-    }
-  }
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// --- Form helpers (same as before) ---
+
+function getInput(id: string): HTMLInputElement {
+  return getEl<HTMLInputElement>(id);
 }
 
 function readMetadataFromForm(): EnrichedMetadata {
@@ -42,8 +38,7 @@ function readMetadataFromForm(): EnrichedMetadata {
       getInput("field-energy").value !== ""
         ? parseInt(getInput("field-energy").value, 10)
         : null,
-    bpm:
-      getInput("field-bpm").value !== "" ? parseFloat(getInput("field-bpm").value) : null,
+    bpm: getInput("field-bpm").value !== "" ? parseFloat(getInput("field-bpm").value) : null,
     key: getInput("field-key").value || null,
     comment: getInput("field-comment").value,
   };
@@ -59,19 +54,9 @@ function getSelectedFormat(): string {
 
 function computeUserEditedFields(current: EnrichedMetadata): string[] {
   if (initialMetadata === null) return [];
-
   const fields: Array<keyof EnrichedMetadata> = [
-    "artist",
-    "title",
-    "genre",
-    "year",
-    "label",
-    "energy",
-    "bpm",
-    "key",
-    "comment",
+    "artist", "title", "genre", "year", "label", "energy", "bpm", "key", "comment",
   ];
-
   return fields.filter((field) => {
     const initial = initialMetadata![field];
     const now = current[field];
@@ -97,117 +82,290 @@ function populatePreviewForm(metadata: EnrichedMetadata, source: string, url: st
   }
 }
 
-function setBadge(text: string, color: string): void {
-  void chrome.action.setBadgeText({ text });
-  void chrome.action.setBadgeBackgroundColor({ color });
+// --- View switching ---
+
+function showView(view: "fetch" | "loading" | "preview" | "fetch-error"): void {
+  const sections: Record<string, string[]> = {
+    "section-fetch": ["fetch"],
+    "section-loading": ["loading"],
+    "section-preview": ["preview"],
+    "section-fetch-error": ["fetch-error"],
+  };
+  for (const [id, views] of Object.entries(sections)) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = !views.includes(view);
+  }
 }
 
-function clearBadge(): void {
-  void chrome.action.setBadgeText({ text: "" });
-}
+// --- Queue list rendering ---
 
-async function init(): Promise<void> {
-  initialMetadata = null;
-  previewRaw = null;
+function renderQueueList(queue: QueueItem[]): void {
+  const listEl = document.getElementById("queue-list");
+  if (!listEl) return;
 
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tab = tabs[0];
-  currentUrl = tab?.url ?? "";
+  const recent = queue.slice().sort((a, b) => b.addedAt - a.addedAt).slice(0, 10);
 
-  const urlDisplay = document.getElementById("current-url");
-  if (urlDisplay) {
-    urlDisplay.textContent = currentUrl || "(no URL)";
+  if (recent.length === 0) {
+    listEl.innerHTML = "";
+    return;
   }
 
-  const isConnected = await healthCheck();
-  const statusEl = document.getElementById("server-status");
-  if (statusEl) {
-    if (isConnected) {
-      statusEl.textContent = "Connected to local server";
-      statusEl.className = "status connected";
-    } else {
-      statusEl.textContent = "Server not running";
-      statusEl.className = "status disconnected";
+  listEl.innerHTML = recent.map((item) => renderQueueItem(item)).join("");
+  attachQueueListeners(listEl, recent);
+}
+
+function renderQueueItem(item: QueueItem): string {
+  const statusIcon = getStatusIcon(item);
+  const enrichmentIcon = item.enrichmentSource === "claude" ? " ✨" : "";
+  const title = `${item.metadata.artist} - ${item.metadata.title}`;
+
+  let detail = "";
+  if (item.status === "complete" && item.filepath) {
+    detail = `<div class="queue-item-path">→ ${escapeHtml(item.filepath)}</div>`;
+  } else if (item.status === "error" && item.error) {
+    detail = `
+      <div class="queue-item-error">
+        <span>${escapeHtml(item.error)}</span>
+        <button class="btn btn-secondary btn-retry" data-id="${item.id}">Retry</button>
+      </div>`;
+  }
+
+  const expandableDetail = item.status === "complete" ? renderExpandableDetail(item) : "";
+
+  return `
+    <div class="queue-item" data-id="${item.id}" data-status="${item.status}">
+      <div class="queue-item-header">
+        <span class="queue-item-status">${statusIcon}${enrichmentIcon}</span>
+        <span class="queue-item-title" title="${escapeHtml(title)}">${escapeHtml(title)}</span>
+      </div>
+      ${detail}
+      ${expandableDetail}
+    </div>`;
+}
+
+function renderExpandableDetail(item: QueueItem): string {
+  const m = item.metadata;
+  return `
+    <div class="queue-item-detail">
+      <div class="field-row"><label>Artist</label><input type="text" class="edit-field" data-field="artist" value="${escapeAttr(m.artist)}" /></div>
+      <div class="field-row"><label>Title</label><input type="text" class="edit-field" data-field="title" value="${escapeAttr(m.title)}" /></div>
+      <div class="field-row"><label>Genre</label><input type="text" class="edit-field" data-field="genre" value="${escapeAttr(m.genre ?? "")}" /></div>
+      <div class="field-row"><label>Year</label><input type="text" class="edit-field" data-field="year" value="${m.year != null ? m.year : ""}" inputmode="numeric" /></div>
+      <div class="field-row"><label>Label</label><input type="text" class="edit-field" data-field="label" value="${escapeAttr(m.label ?? "")}" /></div>
+      <div class="field-row"><label>Energy</label><input type="text" class="edit-field" data-field="energy" value="${m.energy != null ? m.energy : ""}" inputmode="numeric" /></div>
+      <div class="field-row"><label>BPM</label><input type="text" class="edit-field" data-field="bpm" value="${m.bpm != null ? m.bpm : ""}" inputmode="decimal" /></div>
+      <div class="field-row"><label>Key</label><input type="text" class="edit-field" data-field="key" value="${escapeAttr(m.key ?? "")}" /></div>
+      <div class="field-row"><label>Comment</label><input type="text" class="edit-field" data-field="comment" value="${escapeAttr(m.comment)}" /></div>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-save-tags" data-id="${item.id}">Save Tags</button>
+        <button class="btn btn-secondary btn-cancel-edit" data-id="${item.id}">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function getStatusIcon(item: QueueItem): string {
+  switch (item.status) {
+    case "pending": return "⏳";
+    case "downloading": return '<span class="spinner-inline"></span>';
+    case "complete": return "✓";
+    case "error": return "✗";
+  }
+}
+
+function escapeHtml(str: string): string {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// --- Queue item event listeners ---
+
+function attachQueueListeners(listEl: HTMLElement, items: QueueItem[]): void {
+  void items; // referenced for context; listeners use DOM data attributes
+
+  // Retry buttons
+  listEl.querySelectorAll<HTMLButtonElement>(".btn-retry").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset["id"];
+      if (id) void handleRetry(id);
+    });
+  });
+
+  // Save tags buttons
+  listEl.querySelectorAll<HTMLButtonElement>(".btn-save-tags").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset["id"];
+      if (id) void handleSaveTags(id);
+    });
+  });
+
+  // Cancel edit buttons
+  listEl.querySelectorAll<HTMLButtonElement>(".btn-cancel-edit").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const itemEl = btn.closest(".queue-item");
+      if (itemEl) itemEl.classList.remove("expanded");
+    });
+  });
+
+  // Click to expand/collapse completed items
+  listEl.querySelectorAll<HTMLElement>(".queue-item-header").forEach((header) => {
+    const itemEl = header.closest<HTMLElement>(".queue-item");
+    if (itemEl && itemEl.dataset["status"] === "complete") {
+      header.addEventListener("click", () => {
+        itemEl.classList.toggle("expanded");
+      });
     }
-  }
-
-  const fetchBtn = getEl<HTMLButtonElement>("btn-fetch");
-  if (!currentUrl) {
-    fetchBtn.disabled = true;
-    const urlDisplay2 = document.getElementById("current-url");
-    if (urlDisplay2) urlDisplay2.textContent = "(no URL — open a web page first)";
-  } else {
-    fetchBtn.disabled = !isConnected;
-  }
-
-  render("initial");
+  });
 }
+
+// --- Action handlers ---
+
+async function handleRetry(id: string): Promise<void> {
+  const queue = await readQueue();
+  const idx = queue.findIndex((item) => item.id === id);
+  if (idx !== -1) {
+    queue[idx] = { ...queue[idx], status: "pending", error: undefined };
+    await writeQueue(queue);
+    void chrome.runtime.sendMessage({ type: "queue_process" });
+  }
+}
+
+async function handleSaveTags(id: string): Promise<void> {
+  const queue = await readQueue();
+  const item = queue.find((i) => i.id === id);
+  if (!item || !item.filepath) return;
+
+  const itemEl = document.querySelector<HTMLElement>(`.queue-item[data-id="${id}"]`);
+  if (!itemEl) return;
+
+  const metadata = readEditFields(itemEl);
+
+  try {
+    const result = await requestRetag({ filepath: item.filepath, metadata });
+    const freshQueue = await readQueue();
+    const freshIdx = freshQueue.findIndex((i) => i.id === id);
+    if (freshIdx !== -1) {
+      freshQueue[freshIdx] = {
+        ...freshQueue[freshIdx],
+        metadata,
+        filepath: result.filepath,
+      };
+      await writeQueue(freshQueue);
+    }
+    itemEl.classList.remove("expanded");
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    alert(`Failed to save tags: ${errMsg}`);
+  }
+}
+
+function readEditFields(itemEl: HTMLElement): EnrichedMetadata {
+  const get = (field: string): string =>
+    itemEl.querySelector<HTMLInputElement>(`.edit-field[data-field="${field}"]`)?.value ?? "";
+
+  return {
+    artist: get("artist"),
+    title: get("title"),
+    genre: get("genre") || null,
+    year: get("year") !== "" ? parseInt(get("year"), 10) : null,
+    label: get("label") || null,
+    energy: get("energy") !== "" ? parseInt(get("energy"), 10) : null,
+    bpm: get("bpm") !== "" ? parseFloat(get("bpm")) : null,
+    key: get("key") || null,
+    comment: get("comment"),
+  };
+}
+
+// --- Main flow handlers ---
 
 async function handleFetchMetadata(): Promise<void> {
-  const btn = getEl<HTMLButtonElement>("btn-fetch");
-  btn.disabled = true;
-  render("loading");
+  showView("loading");
 
   try {
     const preview = await fetchPreview(currentUrl);
     populatePreviewForm(preview.enriched, preview.enrichment_source, currentUrl);
     initialMetadata = { ...preview.enriched };
     previewRaw = preview.raw;
-    render("preview");
+    showView("preview");
   } catch (err) {
-    lastErrorMessage = err instanceof Error ? err.message : String(err);
-    const errEl = document.getElementById("error-message");
-    if (errEl) errEl.textContent = lastErrorMessage;
-    render("error");
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const errEl = document.getElementById("fetch-error-message");
+    if (errEl) errEl.textContent = errMsg;
+    showView("fetch-error");
   }
 }
 
-async function handleDownload(): Promise<void> {
+async function handleQueueDownload(): Promise<void> {
   const metadata = readMetadataFromForm();
   const format = getSelectedFormat();
   const userEditedFields = computeUserEditedFields(metadata);
 
-  if (previewRaw === null) {
-    lastErrorMessage = "Preview data missing. Please fetch metadata first.";
-    const errEl = document.getElementById("error-message");
-    if (errEl) errEl.textContent = lastErrorMessage;
-    render("error");
-    return;
-  }
+  if (previewRaw === null) return;
 
-  const req: DownloadRequest = {
+  const item: QueueItem = {
+    id: generateId(),
     url: currentUrl,
     metadata,
     raw: previewRaw,
     format,
-    user_edited_fields: userEditedFields,
+    userEditedFields,
+    status: "pending",
+    addedAt: Date.now(),
   };
 
-  render("downloading");
-  setBadge("...", "#888888");
+  const queue = await readQueue();
+  queue.push(item);
+  await writeQueue(queue);
 
-  try {
-    const result = await requestDownload(req);
+  // Reset form state
+  initialMetadata = null;
+  previewRaw = null;
+  showView("fetch");
 
-    const completeTitleEl = document.getElementById("complete-title");
-    if (completeTitleEl) {
-      completeTitleEl.textContent = `${metadata.artist} - ${metadata.title}`;
-    }
-    const completePathEl = document.getElementById("complete-path");
-    if (completePathEl) {
-      completePathEl.textContent = `→ ${result.filepath}`;
-    }
+  // Trigger service worker to process
+  void chrome.runtime.sendMessage({ type: "queue_process" });
+}
 
-    clearBadge();
-    render("complete");
-  } catch (err) {
-    lastErrorMessage = err instanceof Error ? err.message : String(err);
-    const errEl = document.getElementById("error-message");
-    if (errEl) errEl.textContent = lastErrorMessage;
-    clearBadge();
-    render("error");
+// --- Init ---
+
+async function init(): Promise<void> {
+  initialMetadata = null;
+  previewRaw = null;
+
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  currentUrl = tabs[0]?.url ?? "";
+
+  const isConnected = await healthCheck();
+  const statusEl = document.getElementById("server-status");
+  if (statusEl) {
+    statusEl.className = isConnected ? "status-dot connected" : "status-dot disconnected";
+    statusEl.title = isConnected ? "Connected" : "Server not running";
+  }
+
+  const fetchBtn = getEl<HTMLButtonElement>("btn-fetch");
+  fetchBtn.disabled = !isConnected || !currentUrl;
+
+  showView("fetch");
+
+  // Render existing queue
+  const queue = await readQueue();
+  renderQueueList(queue);
+
+  // Prune old items beyond 10
+  if (queue.length > 10) {
+    const sorted = queue.slice().sort((a, b) => b.addedAt - a.addedAt);
+    await writeQueue(sorted.slice(0, 10));
   }
 }
+
+// --- Event listeners ---
 
 document.addEventListener("DOMContentLoaded", () => {
   void init();
@@ -216,17 +374,23 @@ document.addEventListener("DOMContentLoaded", () => {
     void handleFetchMetadata();
   });
 
-  getEl<HTMLButtonElement>("btn-download").addEventListener("click", () => {
-    void handleDownload();
+  getEl<HTMLButtonElement>("btn-queue").addEventListener("click", () => {
+    void handleQueueDownload();
   });
 
-  getEl<HTMLButtonElement>("btn-retry").addEventListener("click", () => {
-    render("initial");
-    void init();
+  getEl<HTMLButtonElement>("btn-cancel-preview").addEventListener("click", () => {
+    showView("fetch");
   });
 
-  getEl<HTMLButtonElement>("btn-another").addEventListener("click", () => {
-    render("initial");
-    void init();
+  getEl<HTMLButtonElement>("btn-retry-fetch").addEventListener("click", () => {
+    showView("fetch");
+  });
+
+  // Live updates when storage changes
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes["queue"]) {
+      const newQueue = (changes["queue"].newValue as QueueItem[] | undefined) ?? [];
+      renderQueueList(newQueue);
+    }
   });
 });
