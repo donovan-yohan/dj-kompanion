@@ -34,8 +34,8 @@
 - [x] Task 6: Build VDJ database writer (server/vdj.py) _(completed 2026-02-27)_
 - [x] Task 7: Build analyzer orchestrator (server/analyzer.py) _(completed 2026-02-27)_
 - [x] Task 8: Add /api/analyze endpoint and post-download trigger _(completed 2026-02-27)_
-- [ ] Task 9: Update extension types, API, and queue status display
-- [ ] Task 10: Integration test — end-to-end verify
+- [x] Task 9: Update extension types, API, and queue status display _(completed 2026-02-27)_
+- [x] Task 10: Integration test — end-to-end verify _(completed 2026-02-27)_
 
 ## Surprises & Discoveries
 
