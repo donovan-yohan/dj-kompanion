@@ -4,12 +4,13 @@ Execution plans for active and completed work.
 
 ## Current State
 
-- No active plans
+- Deferred enrichment plan in progress
 
 ## Active Plans
 
 | Plan | Created | Status |
 |------|---------|--------|
+| [Deferred Enrichment](exec-plans/active/2026-02-26-deferred-enrichment.md) | 2026-02-26 | In Progress |
 
 ## Completed Plans
 
