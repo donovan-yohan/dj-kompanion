@@ -1,16 +1,6 @@
-import { getBaseUrl, fetchWithTimeout, getYouTubeCookies, requestAnalyze } from "./api.js";
-import type { QueueItem, DownloadRequest, DownloadResponse } from "./types.js";
-
-// --- Queue storage helpers ---
-
-async function readQueue(): Promise<QueueItem[]> {
-  const data = await chrome.storage.local.get("queue");
-  return (data["queue"] as QueueItem[] | undefined) ?? [];
-}
-
-async function writeQueue(queue: QueueItem[]): Promise<void> {
-  await chrome.storage.local.set({ queue });
-}
+import { fetchWithTimeout, getBaseUrl, getYouTubeCookies, requestAnalyze } from "./api.js";
+import { readQueue, writeQueue } from "./queue-storage.js";
+import type { DownloadRequest, DownloadResponse, QueueItem } from "./types.js";
 
 async function updateItem(id: string, updates: Partial<QueueItem>): Promise<void> {
   const queue = await readQueue();
@@ -20,8 +10,6 @@ async function updateItem(id: string, updates: Partial<QueueItem>): Promise<void
     await writeQueue(queue);
   }
 }
-
-// --- Badge ---
 
 async function updateBadge(): Promise<void> {
   const queue = await readQueue();
@@ -35,8 +23,6 @@ async function updateBadge(): Promise<void> {
     await chrome.action.setBadgeText({ text: "" });
   }
 }
-
-// --- Processing loop ---
 
 let processing = false;
 
@@ -113,8 +99,6 @@ async function processQueue(): Promise<void> {
   }
 }
 
-// --- Message listener ---
-
 type ServiceWorkerMessage = { type: "queue_process" };
 
 chrome.runtime.onMessage.addListener((message: ServiceWorkerMessage) => {
@@ -122,8 +106,6 @@ chrome.runtime.onMessage.addListener((message: ServiceWorkerMessage) => {
     void processQueue();
   }
 });
-
-// --- Stale recovery on startup ---
 
 chrome.runtime.onStartup.addListener(() => {
   void (async () => {

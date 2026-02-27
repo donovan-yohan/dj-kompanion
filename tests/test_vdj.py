@@ -166,3 +166,17 @@ class TestWriteToVdjDatabase:
         scan = songs[0].find("Scan")
         assert scan is not None
         assert abs(float(scan.get("Bpm", "0")) - 60.0 / 140.0) < 1e-10
+
+    def test_handles_filepath_with_quotes_and_apostrophes(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = _make_db(tmp_path)
+        result = _sample_result()
+        special_path = '/path/with "quote" and \'apostrophe\'.m4a'
+        write_to_vdj_database(db_path, special_path, result)
+
+        tree = ET.parse(db_path)
+        root = tree.getroot()
+        songs = root.findall(".//Song")
+        matching = [song for song in songs if song.get("FilePath") == special_path]
+        assert len(matching) == 1

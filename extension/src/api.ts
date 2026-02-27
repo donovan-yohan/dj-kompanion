@@ -2,8 +2,6 @@ import { DEFAULT_HOST, DEFAULT_PORT } from "./constants.js";
 import type {
   AnalyzeResponse,
   CookieData,
-  DownloadRequest,
-  DownloadResponse,
   PreviewResponse,
   RetagRequest,
   RetagResponse,
@@ -81,24 +79,6 @@ export async function fetchPreview(url: string): Promise<PreviewResponse> {
     throw new Error(`Server error ${response.status}: ${text}`);
   }
   return (await response.json()) as PreviewResponse;
-}
-
-export async function requestDownload(req: DownloadRequest): Promise<DownloadResponse> {
-  const baseUrl = await getBaseUrl();
-  const response = await fetchWithTimeout(
-    `${baseUrl}/api/download`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req),
-    },
-    120000
-  );
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Server error ${response.status}: ${text}`);
-  }
-  return (await response.json()) as DownloadResponse;
 }
 
 export async function requestAnalyze(filepath: string): Promise<AnalyzeResponse> {

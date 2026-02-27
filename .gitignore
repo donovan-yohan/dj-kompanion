@@ -38,3 +38,5 @@ Thumbs.db
 # Claude Code state (ralph loop logs, completion markers)
 .claude/ralph-*.log
 .claude/phase-*-complete
+.worktrees/
+.claude/worktrees/
