@@ -84,6 +84,34 @@ def basic_enrich(raw: RawMetadata) -> EnrichedMetadata:
     )
 
 
+def merge_metadata(
+    user: EnrichedMetadata,
+    claude: EnrichedMetadata | None,
+    user_edited_fields: list[str],
+) -> EnrichedMetadata:
+    """Merge user-edited metadata with Claude enrichment results.
+
+    Priority: user-edited fields > Claude non-null > user/basic value.
+    Comment is always preserved from the user's metadata.
+    """
+    if claude is None:
+        return user
+
+    user_dict = user.model_dump()
+    claude_dict = claude.model_dump()
+
+    merged: dict[str, object] = {}
+    for field, user_val in user_dict.items():
+        if field == "comment" or field in user_edited_fields:
+            merged[field] = user_val
+        elif claude_dict[field] is not None:
+            merged[field] = claude_dict[field]
+        else:
+            merged[field] = user_val
+
+    return EnrichedMetadata.model_validate(merged)
+
+
 def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMetadata | None:
     """Parse JSON response from claude CLI. Returns None if parsing fails."""
     text_to_parse = response_text
@@ -173,3 +201,33 @@ async def enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMet
         return basic_enrich(raw)
 
     return enriched
+
+
+async def try_enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata | None:
+    """Like enrich_metadata, but returns None instead of falling back.
+
+    Used by the download endpoint to distinguish Claude success from failure.
+    """
+    if not await is_claude_available():
+        return None
+
+    prompt = _PROMPT_TEMPLATE.format(
+        raw_metadata_json=raw.model_dump_json(indent=2),
+    )
+
+    cmd = ["claude", "-p", "--model", model, "--output-format", "json", prompt]
+
+    try:
+        result = await asyncio.to_thread(_run_subprocess, cmd, 30.0)
+    except subprocess.TimeoutExpired:
+        logger.warning("claude timed out after 30s")
+        return None
+    except (FileNotFoundError, OSError) as e:
+        logger.warning("claude CLI error: %s", e)
+        return None
+
+    if result.returncode != 0:
+        logger.warning("claude returned non-zero exit code %d", result.returncode)
+        return None
+
+    return _parse_claude_response(result.stdout, raw)

@@ -38,12 +38,15 @@ class PreviewResponse(BaseModel):
 
 
 _ALLOWED_FORMATS = {"best", "mp3", "flac", "m4a", "ogg", "opus", "wav", "aac"}
+_ENRICHED_FIELDS = frozenset(EnrichedMetadata.model_fields.keys())
 
 
 class DownloadRequest(BaseModel):
     url: str
     metadata: EnrichedMetadata
+    raw: RawMetadata
     format: str = "best"
+    user_edited_fields: list[str] = []
 
     @field_validator("format")
     @classmethod
@@ -53,10 +56,20 @@ class DownloadRequest(BaseModel):
             raise ValueError(msg)
         return v
 
+    @field_validator("user_edited_fields")
+    @classmethod
+    def validate_edited_fields(cls, v: list[str]) -> list[str]:
+        invalid = set(v) - _ENRICHED_FIELDS
+        if invalid:
+            msg = f"Unknown metadata fields: {sorted(invalid)}"
+            raise ValueError(msg)
+        return v
+
 
 class DownloadResponse(BaseModel):
     status: str
     filepath: str
+    enrichment_source: Literal["claude", "basic", "none"] = "none"
 
 
 class HealthResponse(BaseModel):

@@ -6,7 +6,13 @@ import subprocess
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from server.enrichment import basic_enrich, enrich_metadata, is_claude_available
+from server.enrichment import (
+    basic_enrich,
+    enrich_metadata,
+    is_claude_available,
+    merge_metadata,
+    try_enrich_metadata,
+)
 from server.models import EnrichedMetadata, RawMetadata
 
 
@@ -280,3 +286,106 @@ def test_enrich_metadata_uses_custom_model() -> None:
 
     enrichment_cmd = [c for c in captured_cmd if "--version" not in c][0]
     assert "sonnet" in enrichment_cmd
+
+
+# --- merge_metadata ---
+
+
+def test_merge_user_edited_wins_over_claude() -> None:
+    user = EnrichedMetadata(artist="My Edit", title="My Title", genre="Pop")
+    claude = EnrichedMetadata(artist="Claude Artist", title="Claude Title", genre="EDM")
+    result = merge_metadata(user, claude, user_edited_fields=["artist", "genre"])
+    assert result.artist == "My Edit"  # user edited
+    assert result.genre == "Pop"  # user edited
+    assert result.title == "Claude Title"  # not edited, Claude wins
+
+
+def test_merge_claude_fills_non_edited_nulls() -> None:
+    user = EnrichedMetadata(artist="Artist", title="Title", genre=None)
+    claude = EnrichedMetadata(artist="Artist", title="Title", genre="House", year=2024, energy=7)
+    result = merge_metadata(user, claude, user_edited_fields=[])
+    assert result.genre == "House"
+    assert result.year == 2024
+    assert result.energy == 7
+
+
+def test_merge_basic_fallback_for_claude_null() -> None:
+    user = EnrichedMetadata(artist="Artist", title="Title", energy=5)
+    claude = EnrichedMetadata(artist="Artist", title="Title", energy=None)
+    result = merge_metadata(user, claude, user_edited_fields=[])
+    assert result.energy == 5  # Claude null, fall back to user/basic value
+
+
+def test_merge_none_claude_returns_basic() -> None:
+    user = EnrichedMetadata(artist="Artist", title="Title", genre="Pop")
+    result = merge_metadata(user, None, user_edited_fields=[])
+    assert result.artist == "Artist"
+    assert result.genre == "Pop"
+
+
+def test_merge_empty_edited_uses_all_claude() -> None:
+    user = EnrichedMetadata(artist="Basic", title="Basic")
+    claude = EnrichedMetadata(
+        artist="Claude", title="Better Title", genre="Techno", year=2023, energy=8
+    )
+    result = merge_metadata(user, claude, user_edited_fields=[])
+    assert result.artist == "Claude"
+    assert result.title == "Better Title"
+    assert result.genre == "Techno"
+    assert result.year == 2023
+    assert result.energy == 8
+
+
+def test_merge_preserves_comment() -> None:
+    user = EnrichedMetadata(artist="A", title="T", comment="https://example.com")
+    claude = EnrichedMetadata(artist="A", title="T", comment="https://other.com")
+    result = merge_metadata(user, claude, user_edited_fields=[])
+    assert result.comment == "https://example.com"  # user's comment always preserved
+
+
+# --- try_enrich_metadata ---
+
+
+def test_try_enrich_returns_none_when_unavailable() -> None:
+    raw = make_raw()
+    with patch("server.enrichment.subprocess.run", side_effect=FileNotFoundError()):
+        result = asyncio.run(try_enrich_metadata(raw))
+    assert result is None
+
+
+def test_try_enrich_returns_none_on_timeout() -> None:
+    raw = make_raw()
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if "--version" in cmd:
+            return make_process("", returncode=0)
+        raise subprocess.TimeoutExpired("claude", 30)
+
+    with patch("server.enrichment.subprocess.run", side_effect=fake_run):
+        result = asyncio.run(try_enrich_metadata(raw))
+    assert result is None
+
+
+def test_try_enrich_returns_metadata_on_success() -> None:
+    raw = make_raw()
+    response = claude_json(artist="Bicep", title="GLUE", genre="Electronic")
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(response)):
+        result = asyncio.run(try_enrich_metadata(raw))
+
+    assert result is not None
+    assert result.artist == "Bicep"
+    assert result.genre == "Electronic"
+
+
+def test_try_enrich_returns_none_on_invalid_json() -> None:
+    raw = make_raw()
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if "--version" in cmd:
+            return make_process("", returncode=0)
+        return make_process("not json", returncode=0)
+
+    with patch("server.enrichment.subprocess.run", side_effect=fake_run):
+        result = asyncio.run(try_enrich_metadata(raw))
+    assert result is None

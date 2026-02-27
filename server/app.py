@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Literal
 
 import yt_dlp  # type: ignore[import-untyped]
@@ -9,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from server.config import load_config
 from server.downloader import DownloadError, download_audio, extract_metadata
-from server.enrichment import enrich_metadata, is_claude_available
+from server.enrichment import basic_enrich, is_claude_available, merge_metadata, try_enrich_metadata
 from server.models import (
     DownloadRequest,
     DownloadResponse,
@@ -61,20 +62,8 @@ async def preview(req: PreviewRequest) -> PreviewResponse:
             detail={"error": "extraction_failed", "message": e.message, "url": e.url},
         ) from e
 
-    cfg = load_config()
-    use_llm = cfg.llm.enabled and await is_claude_available()
-
-    source: Literal["claude", "none"]
-    if use_llm:
-        enriched = await enrich_metadata(raw, model=cfg.llm.model)
-        source = "claude"
-    else:
-        from server.enrichment import basic_enrich
-
-        enriched = basic_enrich(raw)
-        source = "none"
-
-    return PreviewResponse(raw=raw, enriched=enriched, enrichment_source=source)
+    enriched = basic_enrich(raw)
+    return PreviewResponse(raw=raw, enriched=enriched, enrichment_source="none")
 
 
 @app.post("/api/download", response_model=DownloadResponse)
@@ -82,22 +71,69 @@ async def download(req: DownloadRequest) -> DownloadResponse:
     cfg = load_config()
 
     filename = build_download_filename(req.metadata.artist, req.metadata.title)
+    use_llm = cfg.llm.enabled and await is_claude_available()
 
-    try:
-        filepath = await download_audio(
-            req.url,
-            cfg.output_dir,
-            filename,
-            req.format,
+    enrichment_source: Literal["claude", "basic", "none"]
+
+    if use_llm:
+        results = await asyncio.gather(
+            download_audio(req.url, cfg.output_dir, filename, req.format),
+            try_enrich_metadata(req.raw, model=cfg.llm.model),
+            return_exceptions=True,
         )
-    except DownloadError as e:
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "download_failed", "message": e.message, "url": e.url},
-        ) from e
+        filepath_result, claude_result = results
+
+        if isinstance(filepath_result, DownloadError):
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "download_failed",
+                    "message": filepath_result.message,
+                    "url": filepath_result.url,
+                },
+            ) from filepath_result
+        if isinstance(filepath_result, BaseException):
+            if not isinstance(filepath_result, Exception):
+                raise filepath_result
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "download_failed",
+                    "message": str(filepath_result),
+                    "url": req.url,
+                },
+            ) from filepath_result
+
+        filepath = filepath_result
+
+        if isinstance(claude_result, BaseException):
+            if not isinstance(claude_result, Exception):
+                raise claude_result
+            final_metadata = merge_metadata(
+                req.metadata, basic_enrich(req.raw), req.user_edited_fields
+            )
+            enrichment_source = "basic"
+        elif claude_result is None:
+            final_metadata = merge_metadata(
+                req.metadata, basic_enrich(req.raw), req.user_edited_fields
+            )
+            enrichment_source = "basic"
+        else:
+            final_metadata = merge_metadata(req.metadata, claude_result, req.user_edited_fields)
+            enrichment_source = "claude"
+    else:
+        try:
+            filepath = await download_audio(req.url, cfg.output_dir, filename, req.format)
+        except DownloadError as e:
+            raise HTTPException(
+                status_code=500,
+                detail={"error": "download_failed", "message": e.message, "url": e.url},
+            ) from e
+        final_metadata = req.metadata
+        enrichment_source = "none"
 
     try:
-        final_path = tag_file(filepath, req.metadata)
+        final_path = tag_file(filepath, final_metadata)
     except TaggingError as e:
         raise HTTPException(
             status_code=500,
@@ -108,4 +144,8 @@ async def download(req: DownloadRequest) -> DownloadResponse:
             },
         ) from e
 
-    return DownloadResponse(status="complete", filepath=str(final_path))
+    return DownloadResponse(
+        status="complete",
+        filepath=str(final_path),
+        enrichment_source=enrichment_source,
+    )

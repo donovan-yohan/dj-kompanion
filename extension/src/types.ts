@@ -29,10 +29,13 @@ export interface PreviewResponse {
 export interface DownloadRequest {
   url: string;
   metadata: EnrichedMetadata;
+  raw: RawMetadata;
   format: string;
+  user_edited_fields: string[];
 }
 
 export interface DownloadResponse {
   status: string;
   filepath: string;
+  enrichment_source: "claude" | "basic" | "none";
 }
