@@ -43,7 +43,9 @@ _ALLOWED_FORMATS = {"best", "mp3", "flac", "m4a", "ogg", "opus", "wav", "aac"}
 class DownloadRequest(BaseModel):
     url: str
     metadata: EnrichedMetadata
+    raw: RawMetadata
     format: str = "best"
+    user_edited_fields: list[str] = []
 
     @field_validator("format")
     @classmethod
@@ -57,6 +59,7 @@ class DownloadRequest(BaseModel):
 class DownloadResponse(BaseModel):
     status: str
     filepath: str
+    enrichment_source: Literal["claude", "basic", "none"] = "none"
 
 
 class HealthResponse(BaseModel):
