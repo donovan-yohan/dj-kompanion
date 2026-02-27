@@ -90,8 +90,8 @@ def write_to_vdj_database(
 
     root = tree.getroot()
 
-    # Find or create Song element
-    song = root.find(f".//Song[@FilePath='{filepath}']")
+    # Find or create Song element (iterate to avoid XPath injection from quotes in filepath)
+    song = next((s for s in root.findall("Song") if s.get("FilePath") == filepath), None)
     if song is None:
         song = ET.SubElement(root, "Song")
         song.set("FilePath", filepath)

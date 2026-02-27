@@ -158,20 +158,8 @@ async def download(req: DownloadRequest) -> DownloadResponse:
             },
         ) from e
 
-    # Fire-and-forget analysis (non-blocking)
-    cfg_analysis = cfg.analysis
-    if cfg_analysis.enabled:
-
-        async def _run_analysis() -> None:
-            try:
-                vdj_path = cfg_analysis.vdj_database
-                await analyze_audio(
-                    final_path, vdj_db_path=vdj_path, max_cues=cfg_analysis.max_cues
-                )
-            except Exception:
-                logger.warning("Post-download analysis failed for %s", final_path, exc_info=True)
-
-        asyncio.create_task(_run_analysis())
+    # Analysis is triggered by the extension via POST /api/analyze after download completes.
+    # This avoids duplicate ML pipeline runs.
 
     return DownloadResponse(
         status="complete",

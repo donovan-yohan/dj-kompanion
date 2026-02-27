@@ -77,6 +77,10 @@ def _compute_stem_energies(
         logger.warning("Failed to load stem audio files", exc_info=True)
         return None
 
+    if drums_sr != bass_sr:
+        logger.warning("Stem sample rate mismatch: drums=%d, bass=%d", drums_sr, bass_sr)
+        return None
+
     # Convert stereo to mono if needed
     if drums_audio.ndim > 1:
         drums_audio = np.mean(drums_audio, axis=1)
@@ -106,6 +110,9 @@ def _compute_stem_energies(
 
 def _run_allin1_sync(filepath: Path, demix_dir: Path) -> Any:
     """Run allin1 analysis synchronously."""
+    if allin1 is None:
+        msg = "allin1 is not installed or cannot be imported (NATTEN may be missing)"
+        raise RuntimeError(msg)
     return allin1.analyze(
         str(filepath),
         keep_byproducts=True,
@@ -128,91 +135,92 @@ async def analyze_audio(
 
     demix_dir = Path(tempfile.mkdtemp(prefix="dj-kompanion-demix-"))
 
-    # --- Stage 1: Structure analysis (allin1) ---
     try:
-        allin1_result: Any = await asyncio.to_thread(_run_allin1_sync, filepath, demix_dir)
-    except Exception:
-        logger.error("allin1 analysis failed for %s", filepath, exc_info=True)
-        return None
-
-    bpm: float = float(allin1_result.bpm)
-    beats: list[float] = [float(b) for b in allin1_result.beats]
-    downbeats: list[float] = [float(d) for d in allin1_result.downbeats]
-
-    raw_segments = [
-        RawSegment(label=str(seg.label), start=float(seg.start), end=float(seg.end))
-        for seg in allin1_result.segments
-    ]
-
-    # --- Stage 2: Key detection (essentia) ---
-    key = ""
-    key_camelot = ""
-    try:
-        key, key_camelot, _scale, _strength = await detect_key(filepath)
-    except Exception:
-        logger.warning(
-            "Key detection failed for %s, continuing without key", filepath, exc_info=True
-        )
-
-    # --- Stage 3: EDM reclassification ---
-    stem_energies: StemEnergies | None = None
-    try:
-        stem_energies = await asyncio.to_thread(
-            _compute_stem_energies,
-            filepath,
-            raw_segments,
-            demix_dir,
-        )
-    except Exception:
-        logger.warning("Stem energy computation failed, using default labels", exc_info=True)
-
-    classified = reclassify_labels(raw_segments, stem_energies)
-
-    # --- Stage 4: Bar counting ---
-    # --- Stage 5: Beat-snapping ---
-    segments: list[SegmentInfo] = []
-    for seg in classified:
-        snapped_start = snap_to_downbeat(seg.start, downbeats)
-        snapped_end = snap_to_downbeat(seg.end, downbeats)
-        bars = count_bars(snapped_start, snapped_end, downbeats)
-        segments.append(
-            SegmentInfo(
-                label=seg.label,
-                original_label=seg.original_label,
-                start=snapped_start,
-                end=snapped_end,
-                bars=bars,
-            )
-        )
-
-    result = AnalysisResult(
-        bpm=bpm,
-        key=key,
-        key_camelot=key_camelot,
-        beats=beats,
-        downbeats=downbeats,
-        segments=segments,
-        vdj_written=False,
-    )
-
-    # --- Write to VDJ database ---
-    if vdj_db_path is not None:
+        # --- Stage 1: Structure analysis (allin1) ---
         try:
-            from server.vdj import write_to_vdj_database
-
-            write_to_vdj_database(vdj_db_path, str(filepath), result, max_cues=max_cues)
-            result.vdj_written = True
+            allin1_result: Any = await asyncio.to_thread(_run_allin1_sync, filepath, demix_dir)
         except Exception:
-            logger.warning("Failed to write to VDJ database", exc_info=True)
+            logger.error("allin1 analysis failed for %s", filepath, exc_info=True)
+            return None
 
-    # Cleanup demix dir
-    shutil.rmtree(demix_dir, ignore_errors=True)
+        bpm: float = float(allin1_result.bpm)
+        beats: list[float] = [float(b) for b in allin1_result.beats]
+        downbeats: list[float] = [float(d) for d in allin1_result.downbeats]
 
-    logger.info(
-        "Analysis complete for %s: BPM=%.1f, Key=%s, %d segments",
-        filepath,
-        bpm,
-        key,
-        len(segments),
-    )
-    return result
+        raw_segments = [
+            RawSegment(label=str(seg.label), start=float(seg.start), end=float(seg.end))
+            for seg in allin1_result.segments
+        ]
+
+        # --- Stage 2: Key detection (essentia) ---
+        key = ""
+        key_camelot = ""
+        try:
+            key, key_camelot, _scale, _strength = await detect_key(filepath)
+        except Exception:
+            logger.warning(
+                "Key detection failed for %s, continuing without key", filepath, exc_info=True
+            )
+
+        # --- Stage 3: EDM reclassification ---
+        stem_energies: StemEnergies | None = None
+        try:
+            stem_energies = await asyncio.to_thread(
+                _compute_stem_energies,
+                filepath,
+                raw_segments,
+                demix_dir,
+            )
+        except Exception:
+            logger.warning("Stem energy computation failed, using default labels", exc_info=True)
+
+        classified = reclassify_labels(raw_segments, stem_energies)
+
+        # --- Stage 4: Bar counting ---
+        # --- Stage 5: Beat-snapping ---
+        segments: list[SegmentInfo] = []
+        for seg in classified:
+            snapped_start = snap_to_downbeat(seg.start, downbeats)
+            snapped_end = snap_to_downbeat(seg.end, downbeats)
+            bars = count_bars(snapped_start, snapped_end, downbeats)
+            segments.append(
+                SegmentInfo(
+                    label=seg.label,
+                    original_label=seg.original_label,
+                    start=snapped_start,
+                    end=snapped_end,
+                    bars=bars,
+                )
+            )
+
+        result = AnalysisResult(
+            bpm=bpm,
+            key=key,
+            key_camelot=key_camelot,
+            beats=beats,
+            downbeats=downbeats,
+            segments=segments,
+            vdj_written=False,
+        )
+
+        # --- Write to VDJ database ---
+        if vdj_db_path is not None:
+            try:
+                from server.vdj import write_to_vdj_database
+
+                write_to_vdj_database(vdj_db_path, str(filepath), result, max_cues=max_cues)
+                result.vdj_written = True
+            except Exception:
+                logger.warning("Failed to write to VDJ database", exc_info=True)
+
+        logger.info(
+            "Analysis complete for %s: BPM=%.1f, Key=%s, %d segments",
+            filepath,
+            bpm,
+            key,
+            len(segments),
+        )
+        return result
+    finally:
+        # Always cleanup demix dir, even on early return
+        shutil.rmtree(demix_dir, ignore_errors=True)
