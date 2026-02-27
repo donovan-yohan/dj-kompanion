@@ -7,7 +7,8 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 - Core download + tagging pipeline functional
 - Chrome extension + local server architecture implemented
 - LLM-assisted metadata enrichment operational, deferred to download phase for zero wall-clock overhead
-- ML audio post-processing designed: allin1 + essentia + custom EDM reclassifier for structure/BPM/key/cues
+- ML audio post-processing implemented: 5-stage pipeline (allin1 structure, essentia key, EDM reclassify, bar count, beat-snap) + VDJ cue writer
+- allin1 requires Docker on macOS ARM64 (NATTEN has no macOS wheels); essentia/madmom work natively
 
 ## Key Decisions
 
@@ -26,6 +27,8 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 | allin1 + essentia for audio analysis | ML-based structure detection (allin1) + EDM-tuned key detection (essentia bgate) + custom EDM reclassifier | Audio post-processing design |
 | VDJ database.xml for cue points | Analysis results written to VDJ sidecar XML, not embedded tags; named hot cues with bar counts | Audio post-processing design |
 | Post-download analysis trigger | Analysis runs as background task after download+tagging; non-blocking; best-effort | Audio post-processing design |
+| Docker for allin1 on macOS ARM64 | NATTEN (required by allin1) has no macOS wheels — CUDA only; Docker container planned for production use | Audio post-processing implementation |
+| Graceful fallback on analysis failure | Key detection, stem energy, VDJ write each catch exceptions independently; analysis failure is non-critical | Audio post-processing implementation |
 
 ## Deep Docs
 

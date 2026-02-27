@@ -1,6 +1,6 @@
 # Audio Post-Processing Implementation Plan
 
-> **Status**: Active | **Created**: 2026-02-27 | **Last Updated**: 2026-02-27
+> **Status**: Completed | **Created**: 2026-02-27 | **Completed**: 2026-02-27
 > **Design Doc**: `docs/design-docs/2026-02-27-audio-post-processing-design.md`
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -23,6 +23,8 @@
 | 2026-02-27 | Design | Priority-based cue slot filling (max 8) | Drop > Buildup > Breakdown > Intro > Outro > Verse > Bridge > Inst/Solo |
 | 2026-02-27 | Design | keep_byproducts=True for Demucs stems | allin1 doesn't expose stems in AnalysisResult; must save to disk via demix_dir |
 | 2026-02-27 | Design | Separate Demucs stem energy computation | Load saved stems with librosa/numpy after allin1 completes |
+| 2026-02-27 | Implementation | Docker approach for allin1 on macOS ARM64 | NATTEN has no macOS wheels; Docker container deferred as tech debt |
+| 2026-02-27 | Retrospective | Plan completed — 10/10 tasks, 2 surprises, 2 drift entries | Platform compatibility should be validated during brainstorming |
 
 ## Progress
 
@@ -1973,13 +1975,18 @@ Expected: Clean.
 
 ## Outcomes & Retrospective
 
-_Filled by /harness:complete when work is done._
-
 **What worked:**
--
+- Modular 5-stage pipeline design — each stage (key detection, beat utils, EDM reclassifier, VDJ writer) is independently testable and was built/tested in isolation
+- Clean separation of concerns — analyzer.py orchestrates, individual modules do one thing
+- Parallel worker dispatch for independent tasks (2-5 ran simultaneously)
+- TDD approach caught issues early — 186 tests all passing
+- Graceful fallback pattern — each analysis stage catches exceptions independently, so partial analysis still succeeds
 
 **What didn't:**
--
+- Platform compatibility was not validated during brainstorming/design — allin1's NATTEN dependency has no macOS ARM64 support, which was only discovered during Task 1 implementation. This caused significant rework (researching forks, testing alternatives, pivoting to Docker approach)
+- The plan assumed direct Python imports would work — should have validated `import allin1` on the target platform before writing the full plan
 
 **Learnings to codify:**
--
+- **Deployment target validation must be part of brainstorming** — Before selecting ML libraries, verify they have wheels/builds for the actual deployment platform (macOS ARM64 in this case). Check PyPI for platform-specific wheels, not just `pip install` success.
+- **NATTEN is CUDA-only** — Any library depending on NATTEN (Neighborhood Attention Transformer) won't work natively on macOS. Docker is the workaround.
+- **madmom PyPI is broken on Python 3.13+** — Must install from git HEAD (`{git = "https://github.com/CPJKU/madmom.git"}`)
