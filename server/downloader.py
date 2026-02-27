@@ -67,27 +67,27 @@ async def extract_metadata(url: str) -> RawMetadata:
     return await asyncio.to_thread(_extract_metadata_sync, url)
 
 
+_DEFAULT_AUDIO_FORMAT = "m4a"
+
+
 def _download_audio_sync(
     url: str,
     output_dir: Path,
     filename: str,
     preferred_format: str,
 ) -> Path:
-    postprocessors: list[dict[str, Any]] = []
-
-    if preferred_format != "best":
-        postprocessors.append(
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": preferred_format,
-                "preferredquality": "0",
-            }
-        )
+    audio_format = _DEFAULT_AUDIO_FORMAT if preferred_format == "best" else preferred_format
 
     ydl_opts: dict[str, Any] = {
         "format": "bestaudio/best",
         "outtmpl": str(output_dir / filename) + ".%(ext)s",
-        "postprocessors": postprocessors,
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": audio_format,
+                "preferredquality": "0",
+            }
+        ],
         "quiet": True,
     }
 
@@ -97,9 +97,7 @@ def _download_audio_sync(
             if info is None:
                 raise DownloadError("Download returned no info", url=url)
             filepath: str = ydl.prepare_filename(info)
-            path = Path(filepath)
-            if preferred_format != "best":
-                path = path.with_suffix(f".{preferred_format}")
+            path = Path(filepath).with_suffix(f".{audio_format}")
             return path
     except DownloadError:
         raise

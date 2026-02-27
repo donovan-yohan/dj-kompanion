@@ -169,10 +169,10 @@ class TestDownloadAudio:
                 )
             )
 
-        assert result == Path(expected)
+        assert result == Path(tmp_path / "test.m4a")
 
-    def test_best_format_preserves_extension(self, tmp_path: Path) -> None:
-        base = str(tmp_path / "test.opus")
+    def test_best_format_converts_to_default_audio(self, tmp_path: Path) -> None:
+        base = str(tmp_path / "test.webm")
         mock = _make_ydl_mock(YOUTUBE_INFO, filename=base)
 
         with patch("server.downloader.yt_dlp.YoutubeDL", mock):
@@ -185,7 +185,7 @@ class TestDownloadAudio:
                 )
             )
 
-        assert result.suffix == ".opus"
+        assert result.suffix == ".m4a"
 
     @pytest.mark.parametrize("fmt", ["mp3", "flac", "m4a"])
     def test_format_conversion(self, tmp_path: Path, fmt: str) -> None:
@@ -221,7 +221,7 @@ class TestDownloadAudio:
         assert any(p["key"] == "FFmpegExtractAudio" for p in opts["postprocessors"])
         assert opts["postprocessors"][0]["preferredcodec"] == "mp3"
 
-    def test_no_postprocessors_for_best(self, tmp_path: Path) -> None:
+    def test_best_uses_extract_audio_postprocessor(self, tmp_path: Path) -> None:
         mock = _make_ydl_mock(YOUTUBE_INFO, str(tmp_path / "test.webm"))
 
         with patch("server.downloader.yt_dlp.YoutubeDL", mock) as patched:
@@ -235,7 +235,8 @@ class TestDownloadAudio:
             )
 
         opts = patched.call_args[0][0]
-        assert opts["postprocessors"] == []
+        assert any(p["key"] == "FFmpegExtractAudio" for p in opts["postprocessors"])
+        assert opts["postprocessors"][0]["preferredcodec"] == "m4a"
 
     def test_none_info_raises_download_error(self, tmp_path: Path) -> None:
         with patch("server.downloader.yt_dlp.YoutubeDL", _make_ydl_mock(None)):
@@ -279,8 +280,7 @@ class TestDownloadAudio:
                 preferred_format="best",
             )
 
-        assert result.suffix != "", f"Expected file extension, got: {result}"
-        assert result.suffix == ".webm"
+        assert result.suffix == ".m4a"
 
     def test_download_preferred_format_overrides_extension(self, tmp_path: Path) -> None:
         """When preferred_format is set, extension should match it."""
