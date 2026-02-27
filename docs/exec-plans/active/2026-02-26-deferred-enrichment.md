@@ -1,6 +1,6 @@
 # Deferred Enrichment Implementation Plan
 
-> **Status**: Active | **Created**: 2026-02-26 | **Last Updated**: 2026-02-26
+> **Status**: Complete | **Created**: 2026-02-26 | **Last Updated**: 2026-02-26
 > **Design Doc**: Plan derived from brainstorming session (no separate design doc)
 > **For Claude:** Use /harness:orchestrate to execute this plan.
 
@@ -25,20 +25,21 @@
 
 ## Progress
 
-- [ ] Task 1: Update Pydantic models
-- [ ] Task 2: Add `merge_metadata` to enrichment
-- [ ] Task 3: Add `try_enrich_metadata` to enrichment
-- [ ] Task 4: Simplify preview endpoint
-- [ ] Task 5: Restructure download endpoint
-- [ ] Task 6: Update TypeScript types
-- [ ] Task 7: Add edit tracking to popup
-- [ ] Task 8: Reduce preview timeout
-- [ ] Task 9: Update existing tests
-- [ ] Task 10: Final verification
+- [x] Task 1: Update Pydantic models
+- [x] Task 2: Add `merge_metadata` to enrichment
+- [x] Task 3: Add `try_enrich_metadata` to enrichment
+- [x] Task 4: Simplify preview endpoint
+- [x] Task 5: Restructure download endpoint
+- [x] Task 6: Update TypeScript types
+- [x] Task 7: Add edit tracking to popup
+- [x] Task 8: Reduce preview timeout
+- [x] Task 9: Update existing tests
+- [x] Task 10: Final verification
 
 ## Surprises & Discoveries
 
-_None yet — updated during execution by /harness:orchestrate._
+- `cast("Path", filepath_result)` was redundant — mypy already narrowed the type after isinstance checks, removed it
+- ruff SIM114 flagged combining `comment` and `user_edited_fields` branches in merge_metadata — applied
 
 ## Plan Drift
 
