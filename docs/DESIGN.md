@@ -7,6 +7,7 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 - Core download + tagging pipeline functional
 - Chrome extension + local server architecture implemented
 - LLM-assisted metadata enrichment operational, deferred to download phase for zero wall-clock overhead
+- ML audio post-processing designed: allin1 + essentia + custom EDM reclassifier for structure/BPM/key/cues
 
 ## Key Decisions
 
@@ -22,6 +23,9 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 | User-edit tracking | Extension tracks which fields user modified; merge preserves user edits over Claude | Deferred enrichment plan |
 | Three-way merge | Priority: user-edited > Claude non-null > basic fallback; comment always from user | Deferred enrichment plan |
 | Download queue in extension | Service worker processes downloads in background; chrome.storage.local is source of truth; popup is stateless renderer | Download queue design |
+| allin1 + essentia for audio analysis | ML-based structure detection (allin1) + EDM-tuned key detection (essentia bgate) + custom EDM reclassifier | Audio post-processing design |
+| VDJ database.xml for cue points | Analysis results written to VDJ sidecar XML, not embedded tags; named hot cues with bar counts | Audio post-processing design |
+| Post-download analysis trigger | Analysis runs as background task after download+tagging; non-blocking; best-effort | Audio post-processing design |
 
 ## Deep Docs
 
@@ -30,6 +34,7 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 | `design-docs/core-beliefs.md` | Agent-first operating principles |
 | `design-docs/2026-02-26-yt-dlp-dj-design.md` | Monolithic reference design |
 | `design-docs/2026-02-26-01-*` through `04-*` | Per-phase focused design docs |
+| `design-docs/2026-02-27-audio-post-processing-design.md` | ML audio analysis pipeline design |
 
 ## See Also
 

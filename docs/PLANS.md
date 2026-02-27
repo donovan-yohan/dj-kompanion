@@ -4,13 +4,14 @@ Execution plans for active and completed work.
 
 ## Current State
 
-- Download queue feature in progress
+- Audio post-processing feature in progress
 
 ## Active Plans
 
 | Plan | Created | Status |
 |------|---------|--------|
-| [Download Queue](exec-plans/active/2026-02-26-download-queue.md) | 2026-02-26 | Active |
+| [Download Queue](exec-plans/active/2026-02-26-download-queue.md) | 2026-02-26 | Complete |
+| [Audio Post-Processing](exec-plans/active/2026-02-27-audio-post-processing.md) | 2026-02-27 | Active |
 
 ## Completed Plans
 
