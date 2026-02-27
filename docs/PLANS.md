@@ -4,12 +4,13 @@ Execution plans for active and completed work.
 
 ## Current State
 
-- No active plans
+- Download queue feature in progress
 
 ## Active Plans
 
 | Plan | Created | Status |
 |------|---------|--------|
+| [Download Queue](exec-plans/active/2026-02-26-download-queue.md) | 2026-02-26 | Active |
 
 ## Completed Plans
 
