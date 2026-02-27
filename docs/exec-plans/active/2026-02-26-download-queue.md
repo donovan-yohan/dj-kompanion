@@ -1,6 +1,6 @@
 # Download Queue
 
-> **Status**: Active | **Created**: 2026-02-26 | **Last Updated**: 2026-02-26
+> **Status**: Complete | **Created**: 2026-02-26 | **Last Updated**: 2026-02-27
 > **Design Doc**: `docs/design-docs/2026-02-26-download-queue-design.md`
 > **For Claude:** Use /harness:orchestrate to execute this plan.
 
@@ -17,22 +17,22 @@
 
 ## Progress
 
-- [ ] Task 1: Server — add retag endpoint and update download response
-- [ ] Task 2: Extension types — add QueueItem and retag interfaces
-- [ ] Task 3: Extension API — add requestRetag function
-- [ ] Task 4: Service worker — download processing loop
-- [ ] Task 5: Popup HTML — queue-based layout
-- [ ] Task 6: Popup CSS — queue item styles
-- [ ] Task 7: Popup TS — queue renderer and inline preview
-- [ ] Task 8: Integration test — end-to-end build and typecheck
+- [x] Task 1: Server — add retag endpoint and update download response _(completed 2026-02-27)_
+- [x] Task 2: Extension types — add QueueItem and retag interfaces _(completed 2026-02-27)_
+- [x] Task 3: Extension API — add requestRetag function _(completed 2026-02-27)_
+- [x] Task 4: Service worker — download processing loop _(completed 2026-02-27)_
+- [x] Task 5: Popup HTML — queue-based layout _(completed 2026-02-27)_
+- [x] Task 6: Popup CSS — queue item styles _(completed 2026-02-27)_
+- [x] Task 7: Popup TS — queue renderer and inline preview _(completed 2026-02-27)_
+- [x] Task 8: Integration test — end-to-end build and typecheck _(completed 2026-02-27)_
 
 ## Surprises & Discoveries
 
-_None yet — updated during execution by /harness:orchestrate._
+_None — execution was clean across all 8 tasks._
 
 ## Plan Drift
 
-_None yet — updated when tasks deviate from plan during execution._
+_None — all tasks implemented as specified._
 
 ---
 
