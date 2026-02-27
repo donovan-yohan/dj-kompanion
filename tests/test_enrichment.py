@@ -269,6 +269,46 @@ def test_enrich_metadata_handles_json_envelope() -> None:
     assert result.title == "GLUE"
 
 
+def test_enrich_metadata_handles_markdown_fenced_json() -> None:
+    """Test that markdown code fences are stripped before parsing."""
+    raw = make_raw()
+    inner = claude_json(artist="Ninajirachi", title="iPod Touch", genre="Indie Pop")
+    fenced = f"```json\n{inner}\n```"
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(fenced)):
+        result = asyncio.run(enrich_metadata(raw))
+
+    assert result.artist == "Ninajirachi"
+    assert result.title == "iPod Touch"
+    assert result.genre == "Indie Pop"
+
+
+def test_enrich_metadata_handles_markdown_fenced_no_lang() -> None:
+    """Test that markdown fences without language tag are also stripped."""
+    raw = make_raw()
+    inner = claude_json(artist="Bicep", title="GLUE")
+    fenced = f"```\n{inner}\n```"
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(fenced)):
+        result = asyncio.run(enrich_metadata(raw))
+
+    assert result.artist == "Bicep"
+    assert result.title == "GLUE"
+
+
+def test_try_enrich_handles_markdown_fenced_json() -> None:
+    """Test that try_enrich also handles fenced JSON."""
+    raw = make_raw()
+    inner = claude_json(artist="Fred again..", title="Delilah")
+    fenced = f"```json\n{inner}\n```"
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(fenced)):
+        result = asyncio.run(try_enrich_metadata(raw))
+
+    assert result is not None
+    assert result.artist == "Fred again.."
+
+
 def test_enrich_metadata_uses_custom_model() -> None:
     """Test that the model parameter is passed to the claude command."""
     raw = make_raw()

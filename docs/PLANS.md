@@ -15,11 +15,9 @@ Execution plans for active and completed work.
 
 | Plan | Created | Completed |
 |------|---------|-----------|
+| [Bugfix: JSON Fences & Missing Extension](exec-plans/completed/2026-02-26-bugfix-json-fences-and-missing-extension.md) | 2026-02-26 | 2026-02-27 |
 | [Deferred Enrichment](exec-plans/completed/2026-02-26-deferred-enrichment.md) | 2026-02-26 | 2026-02-26 |
 
 ## Tech Debt
 
-| Issue | Severity | Notes |
-|-------|----------|-------|
-| `_parse_claude_response` doesn't strip markdown code fences | Medium | Claude sometimes returns `\`\`\`json\n...\n\`\`\`` wrapper; parser rejects it as invalid JSON |
-| Download fails with missing file extension | Medium | Tagger receives path without extension (`Unsupported format: .`); root cause likely in downloader |
+No tech debt tracked yet.

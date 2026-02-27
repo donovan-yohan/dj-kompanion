@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from server.downloader import DownloadError, download_audio, extract_metadata
+from server.downloader import DownloadError, _download_audio_sync, download_audio, extract_metadata
 
 # ── representative yt-dlp info dicts ──────────────────────────────────────────
 
@@ -260,3 +261,70 @@ class TestDownloadAudio:
                 )
 
         assert "Network error" in exc_info.value.message
+
+    def test_download_best_format_has_extension(self, tmp_path: Path) -> None:
+        """When preferred_format is 'best', returned path must have file extension."""
+        info: dict[str, Any] = {"id": "test123", "title": "Test", "ext": "webm"}
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = info
+        mock_ydl.prepare_filename.return_value = str(tmp_path / "Artist - Title.webm")
+        mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+        mock_ydl.__exit__ = MagicMock(return_value=False)
+
+        with patch("server.downloader.yt_dlp.YoutubeDL", return_value=mock_ydl):
+            result = _download_audio_sync(
+                url="https://example.com",
+                output_dir=tmp_path,
+                filename="Artist - Title",
+                preferred_format="best",
+            )
+
+        assert result.suffix != "", f"Expected file extension, got: {result}"
+        assert result.suffix == ".webm"
+
+    def test_download_preferred_format_overrides_extension(self, tmp_path: Path) -> None:
+        """When preferred_format is set, extension should match it."""
+        info: dict[str, Any] = {"id": "test123", "title": "Test", "ext": "webm"}
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = info
+        mock_ydl.prepare_filename.return_value = str(tmp_path / "Artist - Title.webm")
+        mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+        mock_ydl.__exit__ = MagicMock(return_value=False)
+
+        with patch("server.downloader.yt_dlp.YoutubeDL", return_value=mock_ydl):
+            result = _download_audio_sync(
+                url="https://example.com",
+                output_dir=tmp_path,
+                filename="Artist - Title",
+                preferred_format="mp3",
+            )
+
+        assert result.suffix == ".mp3"
+
+    def test_download_outtmpl_includes_ext_placeholder(self, tmp_path: Path) -> None:
+        """Verify outtmpl includes %(ext)s so yt-dlp adds the extension."""
+        info: dict[str, Any] = {"id": "test123", "title": "Test", "ext": "m4a"}
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = info
+        mock_ydl.prepare_filename.return_value = str(tmp_path / "Artist - Title.m4a")
+        mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+        mock_ydl.__exit__ = MagicMock(return_value=False)
+
+        captured_opts: list[dict[str, Any]] = []
+
+        def capture_init(*args: Any, **kwargs: Any) -> MagicMock:
+            if args:
+                captured_opts.append(args[0])
+            return mock_ydl
+
+        with patch("server.downloader.yt_dlp.YoutubeDL", side_effect=capture_init):
+            _download_audio_sync(
+                url="https://example.com",
+                output_dir=tmp_path,
+                filename="Artist - Title",
+                preferred_format="best",
+            )
+
+        assert captured_opts, "YoutubeDL was not called"
+        outtmpl = captured_opts[0]["outtmpl"]
+        assert "%(ext)s" in outtmpl, f"outtmpl missing %(ext)s: {outtmpl}"

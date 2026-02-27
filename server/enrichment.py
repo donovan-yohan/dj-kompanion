@@ -26,6 +26,17 @@ _SUFFIXES = [
     "(Video)",
 ]
 
+_MARKDOWN_FENCE_RE = re.compile(r"^```\w*\s*\n(.*?)\n\s*```\s*$", re.DOTALL)
+
+
+def _strip_markdown_fences(text: str) -> str:
+    """Strip markdown code fences from text if present."""
+    match = _MARKDOWN_FENCE_RE.match(text.strip())
+    if match:
+        return match.group(1)
+    return text
+
+
 _PROMPT_TEMPLATE = """\
 You are a metadata parser for DJ music files. Given raw metadata from a music download, \
 extract clean, accurate metadata.
@@ -124,6 +135,8 @@ def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMeta
                 text_to_parse = result_val
     except json.JSONDecodeError:
         pass
+
+    text_to_parse = _strip_markdown_fences(text_to_parse)
 
     try:
         raw_parsed: Any = json.loads(text_to_parse)
