@@ -1,11 +1,13 @@
 import { fetchPreview, healthCheck, requestDownload } from "./api.js";
 import { getEl } from "./dom.js";
-import type { DownloadRequest, EnrichedMetadata } from "./types.js";
+import type { DownloadRequest, EnrichedMetadata, RawMetadata } from "./types.js";
 
 type PopupState = "initial" | "loading" | "preview" | "downloading" | "complete" | "error";
 
 let currentUrl = "";
 let lastErrorMessage = "";
+let initialMetadata: EnrichedMetadata | null = null;
+let previewRaw: RawMetadata | null = null;
 
 function getInput(id: string): HTMLInputElement {
   return getEl<HTMLInputElement>(id);
@@ -55,6 +57,28 @@ function getSelectedFormat(): string {
   return "best";
 }
 
+function computeUserEditedFields(current: EnrichedMetadata): string[] {
+  if (initialMetadata === null) return [];
+
+  const fields: Array<keyof EnrichedMetadata> = [
+    "artist",
+    "title",
+    "genre",
+    "year",
+    "label",
+    "energy",
+    "bpm",
+    "key",
+    "comment",
+  ];
+
+  return fields.filter((field) => {
+    const initial = initialMetadata![field];
+    const now = current[field];
+    return String(initial ?? "") !== String(now ?? "");
+  });
+}
+
 function populatePreviewForm(metadata: EnrichedMetadata, source: string, url: string): void {
   getInput("field-artist").value = metadata.artist;
   getInput("field-title").value = metadata.title;
@@ -69,7 +93,7 @@ function populatePreviewForm(metadata: EnrichedMetadata, source: string, url: st
   const enrichmentEl = document.getElementById("enrichment-source");
   if (enrichmentEl) {
     enrichmentEl.textContent =
-      source === "claude" ? "Enriched by Claude" : "Basic parsing";
+      source === "claude" ? "Enriched by Claude" : "Metadata preview";
   }
 }
 
@@ -83,6 +107,9 @@ function clearBadge(): void {
 }
 
 async function init(): Promise<void> {
+  initialMetadata = null;
+  previewRaw = null;
+
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
   currentUrl = tab?.url ?? "";
@@ -124,6 +151,8 @@ async function handleFetchMetadata(): Promise<void> {
   try {
     const preview = await fetchPreview(currentUrl);
     populatePreviewForm(preview.enriched, preview.enrichment_source, currentUrl);
+    initialMetadata = { ...preview.enriched };
+    previewRaw = preview.raw;
     render("preview");
   } catch (err) {
     lastErrorMessage = err instanceof Error ? err.message : String(err);
@@ -136,11 +165,14 @@ async function handleFetchMetadata(): Promise<void> {
 async function handleDownload(): Promise<void> {
   const metadata = readMetadataFromForm();
   const format = getSelectedFormat();
+  const userEditedFields = computeUserEditedFields(metadata);
 
   const req: DownloadRequest = {
     url: currentUrl,
     metadata,
+    raw: previewRaw!,
     format,
+    user_edited_fields: userEditedFields,
   };
 
   render("downloading");
