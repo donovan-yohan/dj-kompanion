@@ -280,3 +280,61 @@ def test_enrich_metadata_uses_custom_model() -> None:
 
     enrichment_cmd = [c for c in captured_cmd if "--version" not in c][0]
     assert "sonnet" in enrichment_cmd
+
+
+# --- merge_metadata ---
+
+
+from server.enrichment import merge_metadata
+
+
+def test_merge_user_edited_wins_over_claude() -> None:
+    user = EnrichedMetadata(artist="My Edit", title="My Title", genre="Pop")
+    claude = EnrichedMetadata(artist="Claude Artist", title="Claude Title", genre="EDM")
+    result = merge_metadata(user, claude, user_edited_fields=["artist", "genre"])
+    assert result.artist == "My Edit"  # user edited
+    assert result.genre == "Pop"  # user edited
+    assert result.title == "Claude Title"  # not edited, Claude wins
+
+
+def test_merge_claude_fills_non_edited_nulls() -> None:
+    user = EnrichedMetadata(artist="Artist", title="Title", genre=None)
+    claude = EnrichedMetadata(artist="Artist", title="Title", genre="House", year=2024, energy=7)
+    result = merge_metadata(user, claude, user_edited_fields=[])
+    assert result.genre == "House"
+    assert result.year == 2024
+    assert result.energy == 7
+
+
+def test_merge_basic_fallback_for_claude_null() -> None:
+    user = EnrichedMetadata(artist="Artist", title="Title", energy=5)
+    claude = EnrichedMetadata(artist="Artist", title="Title", energy=None)
+    result = merge_metadata(user, claude, user_edited_fields=[])
+    assert result.energy == 5  # Claude null, fall back to user/basic value
+
+
+def test_merge_none_claude_returns_basic() -> None:
+    user = EnrichedMetadata(artist="Artist", title="Title", genre="Pop")
+    result = merge_metadata(user, None, user_edited_fields=[])
+    assert result.artist == "Artist"
+    assert result.genre == "Pop"
+
+
+def test_merge_empty_edited_uses_all_claude() -> None:
+    user = EnrichedMetadata(artist="Basic", title="Basic")
+    claude = EnrichedMetadata(
+        artist="Claude", title="Better Title", genre="Techno", year=2023, energy=8
+    )
+    result = merge_metadata(user, claude, user_edited_fields=[])
+    assert result.artist == "Claude"
+    assert result.title == "Better Title"
+    assert result.genre == "Techno"
+    assert result.year == 2023
+    assert result.energy == 8
+
+
+def test_merge_preserves_comment() -> None:
+    user = EnrichedMetadata(artist="A", title="T", comment="https://example.com")
+    claude = EnrichedMetadata(artist="A", title="T", comment="https://other.com")
+    result = merge_metadata(user, claude, user_edited_fields=[])
+    assert result.comment == "https://example.com"  # user's comment always preserved

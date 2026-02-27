@@ -84,6 +84,36 @@ def basic_enrich(raw: RawMetadata) -> EnrichedMetadata:
     )
 
 
+def merge_metadata(
+    user: EnrichedMetadata,
+    claude: EnrichedMetadata | None,
+    user_edited_fields: list[str],
+) -> EnrichedMetadata:
+    """Merge user-edited metadata with Claude enrichment results.
+
+    Priority: user-edited fields > Claude non-null > user/basic value.
+    Comment is always preserved from the user's metadata.
+    """
+    if claude is None:
+        return user
+
+    user_dict = user.model_dump()
+    claude_dict = claude.model_dump()
+
+    merged: dict[str, object] = {}
+    for field, user_val in user_dict.items():
+        if field == "comment":
+            merged[field] = user_val
+        elif field in user_edited_fields:
+            merged[field] = user_val
+        elif claude_dict[field] is not None:
+            merged[field] = claude_dict[field]
+        else:
+            merged[field] = user_val
+
+    return EnrichedMetadata.model_validate(merged)
+
+
 def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMetadata | None:
     """Parse JSON response from claude CLI. Returns None if parsing fails."""
     text_to_parse = response_text
