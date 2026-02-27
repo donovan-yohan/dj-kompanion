@@ -6,7 +6,13 @@ import subprocess
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from server.enrichment import basic_enrich, enrich_metadata, is_claude_available
+from server.enrichment import (
+    basic_enrich,
+    enrich_metadata,
+    is_claude_available,
+    merge_metadata,
+    try_enrich_metadata,
+)
 from server.models import EnrichedMetadata, RawMetadata
 
 
@@ -285,9 +291,6 @@ def test_enrich_metadata_uses_custom_model() -> None:
 # --- merge_metadata ---
 
 
-from server.enrichment import merge_metadata
-
-
 def test_merge_user_edited_wins_over_claude() -> None:
     user = EnrichedMetadata(artist="My Edit", title="My Title", genre="Pop")
     claude = EnrichedMetadata(artist="Claude Artist", title="Claude Title", genre="EDM")
@@ -341,9 +344,6 @@ def test_merge_preserves_comment() -> None:
 
 
 # --- try_enrich_metadata ---
-
-
-from server.enrichment import try_enrich_metadata
 
 
 def test_try_enrich_returns_none_when_unavailable() -> None:

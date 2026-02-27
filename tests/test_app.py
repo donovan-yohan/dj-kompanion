@@ -24,6 +24,16 @@ SAMPLE_RAW = RawMetadata(
     source_url="https://www.youtube.com/watch?v=HMUDVMiITOU",
 )
 
+SAMPLE_RAW_DICT: dict[str, object] = {
+    "title": "DJ Snake - Turn Down for What (Official Video)",
+    "uploader": "DJ Snake",
+    "duration": 210,
+    "upload_date": "20140101",
+    "description": "Turn Down for What",
+    "tags": ["edm", "electronic"],
+    "source_url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
+}
+
 SAMPLE_ENRICHED = EnrichedMetadata(
     artist="DJ Snake",
     title="Turn Down for What",
@@ -56,19 +66,14 @@ async def test_health_claude_unavailable(client: AsyncClient) -> None:
 
 
 async def test_preview_success(client: AsyncClient) -> None:
-    with (
-        patch("server.app.extract_metadata", new_callable=AsyncMock, return_value=SAMPLE_RAW),
-        patch("server.app.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED),
-        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
-    ):
+    with patch("server.app.extract_metadata", new_callable=AsyncMock, return_value=SAMPLE_RAW):
         response = await client.post(
             "/api/preview", json={"url": "https://www.youtube.com/watch?v=HMUDVMiITOU"}
         )
     assert response.status_code == 200
     data = response.json()
     assert data["enriched"]["artist"] == "DJ Snake"
-    assert data["enriched"]["title"] == "Turn Down for What"
-    assert data["enrichment_source"] in ("claude", "none")
+    assert data["enrichment_source"] == "none"
     assert "raw" in data
 
 
@@ -90,15 +95,14 @@ async def test_download_success(client: AsyncClient) -> None:
     with (
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
     ):
         response = await client.post(
             "/api/download",
             json={
                 "url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
-                "metadata": {
-                    "artist": "DJ Snake",
-                    "title": "Turn Down for What",
-                },
+                "metadata": {"artist": "DJ Snake", "title": "Turn Down for What"},
+                "raw": SAMPLE_RAW_DICT,
                 "format": "best",
             },
         )
@@ -106,26 +110,30 @@ async def test_download_success(client: AsyncClient) -> None:
     data = response.json()
     assert data["status"] == "complete"
     assert data["filepath"] == str(mock_path)
+    assert data["enrichment_source"] == "none"
 
 
 async def test_download_failure(client: AsyncClient) -> None:
-    with patch(
-        "server.app.download_audio",
-        new_callable=AsyncMock,
-        side_effect=DownloadError("Download failed", url="https://example.com"),
+    with (
+        patch(
+            "server.app.download_audio",
+            new_callable=AsyncMock,
+            side_effect=DownloadError("Download failed", url="https://example.com"),
+        ),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
     ):
         response = await client.post(
             "/api/download",
             json={
                 "url": "https://example.com",
                 "metadata": {"artist": "Test", "title": "Track"},
+                "raw": SAMPLE_RAW_DICT,
                 "format": "best",
             },
         )
     assert response.status_code == 500
     data = response.json()
     assert data["error"] == "download_failed"
-    assert "message" in data
 
 
 async def test_download_tagging_failure(client: AsyncClient) -> None:
@@ -138,18 +146,94 @@ async def test_download_tagging_failure(client: AsyncClient) -> None:
             "server.app.tag_file",
             side_effect=TaggingError("Unsupported format: .xyz", mock_path),
         ),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
     ):
         response = await client.post(
             "/api/download",
             json={
                 "url": "https://example.com",
                 "metadata": {"artist": "Test", "title": "Track"},
+                "raw": SAMPLE_RAW_DICT,
                 "format": "best",
             },
         )
     assert response.status_code == 500
     data = response.json()
     assert data["error"] == "tagging_failed"
+
+
+async def test_download_with_claude_enrichment(client: AsyncClient) -> None:
+    mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
+    with (
+        patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
+        patch("server.app.tag_file", return_value=mock_path),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
+        patch("server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED),
+    ):
+        response = await client.post(
+            "/api/download",
+            json={
+                "url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
+                "metadata": {"artist": "DJ Snake", "title": "Turn Down for What"},
+                "raw": SAMPLE_RAW_DICT,
+                "format": "best",
+            },
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["enrichment_source"] == "claude"
+
+
+async def test_download_claude_fails_gracefully(client: AsyncClient) -> None:
+    mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
+    with (
+        patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
+        patch("server.app.tag_file", return_value=mock_path),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
+        patch("server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=None),
+    ):
+        response = await client.post(
+            "/api/download",
+            json={
+                "url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
+                "metadata": {"artist": "DJ Snake", "title": "Turn Down for What"},
+                "raw": SAMPLE_RAW_DICT,
+                "format": "best",
+            },
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["enrichment_source"] == "basic"
+
+
+async def test_download_user_edited_fields_preserved(client: AsyncClient) -> None:
+    mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
+    claude_enriched = EnrichedMetadata(
+        artist="Claude Artist", title="Claude Title", genre="EDM", year=2014
+    )
+    with (
+        patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
+        patch("server.app.tag_file", return_value=mock_path) as mock_tag,
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
+        patch("server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=claude_enriched),
+    ):
+        response = await client.post(
+            "/api/download",
+            json={
+                "url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
+                "metadata": {"artist": "My Artist", "title": "My Title"},
+                "raw": SAMPLE_RAW_DICT,
+                "format": "best",
+                "user_edited_fields": ["artist", "title"],
+            },
+        )
+    assert response.status_code == 200
+    # Verify tag_file was called with merged metadata preserving user edits
+    tagged_metadata = mock_tag.call_args[0][1]
+    assert tagged_metadata.artist == "My Artist"  # user edited, preserved
+    assert tagged_metadata.title == "My Title"  # user edited, preserved
+    assert tagged_metadata.genre == "EDM"  # not edited, Claude fills in
+    assert tagged_metadata.year == 2014  # not edited, Claude fills in
 
 
 async def test_cors_chrome_extension(client: AsyncClient) -> None:

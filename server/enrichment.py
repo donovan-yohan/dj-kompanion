@@ -102,9 +102,7 @@ def merge_metadata(
 
     merged: dict[str, object] = {}
     for field, user_val in user_dict.items():
-        if field == "comment":
-            merged[field] = user_val
-        elif field in user_edited_fields:
+        if field == "comment" or field in user_edited_fields:
             merged[field] = user_val
         elif claude_dict[field] is not None:
             merged[field] = claude_dict[field]
