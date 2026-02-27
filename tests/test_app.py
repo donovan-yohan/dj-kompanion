@@ -168,7 +168,9 @@ async def test_download_with_claude_enrichment(client: AsyncClient) -> None:
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path),
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
-        patch("server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED),
+        patch(
+            "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
+        ),
     ):
         response = await client.post(
             "/api/download",
@@ -215,7 +217,9 @@ async def test_download_user_edited_fields_preserved(client: AsyncClient) -> Non
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path) as mock_tag,
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
-        patch("server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=claude_enriched),
+        patch(
+            "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=claude_enriched
+        ),
     ):
         response = await client.post(
             "/api/download",
