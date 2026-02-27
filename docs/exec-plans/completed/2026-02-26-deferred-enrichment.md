@@ -1,6 +1,6 @@
 # Deferred Enrichment Implementation Plan
 
-> **Status**: Complete | **Created**: 2026-02-26 | **Last Updated**: 2026-02-26
+> **Status**: Completed | **Created**: 2026-02-26 | **Completed**: 2026-02-26
 > **Design Doc**: Plan derived from brainstorming session (no separate design doc)
 > **For Claude:** Use /harness:orchestrate to execute this plan.
 
@@ -22,6 +22,7 @@
 | 2026-02-26 | Design | Run enrichment parallel with download | Download takes several seconds anyway; Claude runs in parallel at zero extra cost |
 | 2026-02-26 | Design | Add `try_enrich_metadata` (returns None on failure) | Keeps existing `enrich_metadata` unchanged for CLI; lets download endpoint distinguish success vs failure |
 | 2026-02-26 | Design | Pass `raw` in DownloadRequest | Avoids redundant yt-dlp metadata extraction during download; extension already has raw from preview |
+| 2026-02-26 | Retrospective | Plan completed | 10/10 tasks, 0 drift, 2 minor surprises (redundant cast, ruff SIM114) |
 
 ## Progress
 
@@ -903,13 +904,15 @@ git commit -m "feat: defer Claude enrichment to parallel download with smart mer
 
 ## Outcomes & Retrospective
 
-_Filled by /harness:complete when work is done._
-
 **What worked:**
--
+- Detailed step-by-step plan with exact code snippets made execution mechanical — zero ambiguity
+- TDD approach (write failing tests, implement, verify) caught issues early
+- Sequential task ordering with natural dependency flow meant no blockers
 
 **What didn't:**
--
+- Plan specified `cast("Path", ...)` which mypy flagged as redundant — minor plan imprecision
+- Mid-file imports in tests tripped ruff E402 — should have placed imports at top from the start
 
 **Learnings to codify:**
--
+- For Python tests, always place new imports at the top of file, not inline with test sections
+- When using `asyncio.gather` with `return_exceptions=True`, mypy narrows types after `isinstance` checks — no cast needed
