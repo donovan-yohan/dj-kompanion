@@ -322,7 +322,9 @@ SAMPLE_ANALYSIS = AnalysisResult(
     beats=[0.234],
     downbeats=[0.234],
     segments=[
-        SegmentInfo(label="Intro (32 bars)", original_label="intro", start=0.234, end=60.5, bars=32),
+        SegmentInfo(
+            label="Intro (32 bars)", original_label="intro", start=0.234, end=60.5, bars=32
+        ),
     ],
     vdj_written=False,
 )

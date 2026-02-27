@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import TYPE_CHECKING, Any
+from unittest.mock import AsyncMock, patch
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 import pytest
 
@@ -94,7 +96,7 @@ async def test_segments_reclassified_to_edm(
     labels = [s.label for s in result.segments]
     assert "Intro" in labels[0]
     # Chorus with high energy should become Drop
-    assert any("Drop" in l for l in labels)
+    assert any("Drop" in label for label in labels)
 
 
 async def test_segments_have_bar_counts(

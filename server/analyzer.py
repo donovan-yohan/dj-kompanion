@@ -150,13 +150,18 @@ async def analyze_audio(
     try:
         key, key_camelot, _scale, _strength = await detect_key(filepath)
     except Exception:
-        logger.warning("Key detection failed for %s, continuing without key", filepath, exc_info=True)
+        logger.warning(
+            "Key detection failed for %s, continuing without key", filepath, exc_info=True
+        )
 
     # --- Stage 3: EDM reclassification ---
     stem_energies: StemEnergies | None = None
     try:
         stem_energies = await asyncio.to_thread(
-            _compute_stem_energies, filepath, raw_segments, demix_dir,
+            _compute_stem_energies,
+            filepath,
+            raw_segments,
+            demix_dir,
         )
     except Exception:
         logger.warning("Stem energy computation failed, using default labels", exc_info=True)
@@ -201,13 +206,13 @@ async def analyze_audio(
             logger.warning("Failed to write to VDJ database", exc_info=True)
 
     # Cleanup demix dir
-    try:
-        shutil.rmtree(demix_dir, ignore_errors=True)
-    except Exception:
-        pass
+    shutil.rmtree(demix_dir, ignore_errors=True)
 
     logger.info(
         "Analysis complete for %s: BPM=%.1f, Key=%s, %d segments",
-        filepath, bpm, key, len(segments),
+        filepath,
+        bpm,
+        key,
+        len(segments),
     )
     return result

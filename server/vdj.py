@@ -4,16 +4,27 @@ from __future__ import annotations
 
 import logging
 import xml.etree.ElementTree as ET
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from server.models import AnalysisResult, SegmentInfo
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from server.models import AnalysisResult, SegmentInfo
 
 logger = logging.getLogger(__name__)
 
 # Priority order for filling cue slots (highest priority first)
 CUE_PRIORITY: list[str] = [
-    "Drop", "Buildup", "Breakdown", "Intro", "Outro", "Verse", "Bridge",
-    "Instrumental", "Solo", "Chorus",
+    "Drop",
+    "Buildup",
+    "Breakdown",
+    "Intro",
+    "Outro",
+    "Verse",
+    "Bridge",
+    "Instrumental",
+    "Solo",
+    "Chorus",
 ]
 
 
@@ -29,13 +40,15 @@ def build_cue_name(segment: SegmentInfo) -> str:
 
 
 def prioritize_cues(
-    segments: list[SegmentInfo], max_cues: int = 8,
+    segments: list[SegmentInfo],
+    max_cues: int = 8,
 ) -> list[SegmentInfo]:
     """Select up to max_cues segments, prioritized by DJ importance.
 
     Segments are sorted by priority (drops first), then by position within
     each priority level.
     """
+
     def priority_key(seg: SegmentInfo) -> tuple[int, float]:
         # Strip bar count suffix if present: "Drop 1 (16 bars)" -> "Drop 1"
         name = seg.label.split(" (")[0]

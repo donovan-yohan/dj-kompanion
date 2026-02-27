@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from server.models import AnalysisResult, SegmentInfo
 from server.vdj import (
-    CUE_PRIORITY,
     bpm_to_seconds_per_beat,
     build_cue_name,
     prioritize_cues,
@@ -37,11 +36,21 @@ def _sample_result() -> AnalysisResult:
         beats=[0.234, 0.703, 1.172, 1.641],
         downbeats=[0.234, 1.172],
         segments=[
-            SegmentInfo(label="Intro (32 bars)", original_label="intro", start=0.234, end=60.5, bars=32),
-            SegmentInfo(label="Drop 1 (16 bars)", original_label="chorus", start=60.5, end=90.5, bars=16),
-            SegmentInfo(label="Breakdown (8 bars)", original_label="break", start=90.5, end=105.5, bars=8),
-            SegmentInfo(label="Drop 2 (16 bars)", original_label="chorus", start=105.5, end=135.5, bars=16),
-            SegmentInfo(label="Outro (16 bars)", original_label="outro", start=135.5, end=165.5, bars=16),
+            SegmentInfo(
+                label="Intro (32 bars)", original_label="intro", start=0.234, end=60.5, bars=32
+            ),
+            SegmentInfo(
+                label="Drop 1 (16 bars)", original_label="chorus", start=60.5, end=90.5, bars=16
+            ),
+            SegmentInfo(
+                label="Breakdown (8 bars)", original_label="break", start=90.5, end=105.5, bars=8
+            ),
+            SegmentInfo(
+                label="Drop 2 (16 bars)", original_label="chorus", start=105.5, end=135.5, bars=16
+            ),
+            SegmentInfo(
+                label="Outro (16 bars)", original_label="outro", start=135.5, end=165.5, bars=16
+            ),
         ],
     )
 
@@ -76,7 +85,7 @@ class TestPrioritizeCues:
         cues = prioritize_cues(result.segments, max_cues=2)
         # Both drops should come first
         labels = [c.label for c in cues]
-        assert all("Drop" in l for l in labels)
+        assert all("Drop" in label for label in labels)
 
 
 class TestWriteToVdjDatabase:

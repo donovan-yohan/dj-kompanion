@@ -5,8 +5,6 @@ import logging
 from pathlib import Path as FilePath
 from typing import Any, Literal
 
-logger = logging.getLogger(__name__)
-
 import yt_dlp  # type: ignore[import-untyped]
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +27,8 @@ from server.models import (
     RetagResponse,
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
+
+logger = logging.getLogger(__name__)
 
 setup_logging()
 
@@ -161,10 +161,13 @@ async def download(req: DownloadRequest) -> DownloadResponse:
     # Fire-and-forget analysis (non-blocking)
     cfg_analysis = cfg.analysis
     if cfg_analysis.enabled:
+
         async def _run_analysis() -> None:
             try:
                 vdj_path = cfg_analysis.vdj_database
-                await analyze_audio(final_path, vdj_db_path=vdj_path, max_cues=cfg_analysis.max_cues)
+                await analyze_audio(
+                    final_path, vdj_db_path=vdj_path, max_cues=cfg_analysis.max_cues
+                )
             except Exception:
                 logger.warning("Post-download analysis failed for %s", final_path, exc_info=True)
 

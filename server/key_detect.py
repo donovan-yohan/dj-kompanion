@@ -4,21 +4,41 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 _CAMELOT_MAJOR: dict[str, str] = {
-    "B": "1B", "F#": "2B", "Db": "3B", "Ab": "4B",
-    "Eb": "5B", "Bb": "6B", "F": "7B", "C": "8B",
-    "G": "9B", "D": "10B", "A": "11B", "E": "12B",
+    "B": "1B",
+    "F#": "2B",
+    "Db": "3B",
+    "Ab": "4B",
+    "Eb": "5B",
+    "Bb": "6B",
+    "F": "7B",
+    "C": "8B",
+    "G": "9B",
+    "D": "10B",
+    "A": "11B",
+    "E": "12B",
 }
 
 _CAMELOT_MINOR: dict[str, str] = {
-    "Ab": "1A", "Eb": "2A", "Bb": "3A", "F": "4A",
-    "C": "5A", "G": "6A", "D": "7A", "A": "8A",
-    "E": "9A", "B": "10A", "F#": "11A", "Db": "12A",
+    "Ab": "1A",
+    "Eb": "2A",
+    "Bb": "3A",
+    "F": "4A",
+    "C": "5A",
+    "G": "6A",
+    "D": "7A",
+    "A": "8A",
+    "E": "9A",
+    "B": "10A",
+    "F#": "11A",
+    "Db": "12A",
 }
 
 

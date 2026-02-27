@@ -80,9 +80,12 @@ def _classify_segment(
 
     if label == "break":
         # If next segment is a high-energy chorus (drop), this break is a buildup
-        if next_seg is not None and next_seg.label == "chorus":
-            if _is_high_energy(next_seg, stem_energies):
-                return "Buildup"
+        if (
+            next_seg is not None
+            and next_seg.label == "chorus"
+            and _is_high_energy(next_seg, stem_energies)
+        ):
+            return "Buildup"
         return "Breakdown"
 
     # Unknown label — capitalize and pass through
