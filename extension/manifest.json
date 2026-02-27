@@ -3,10 +3,11 @@
   "name": "dj-kompanion",
   "version": "0.1.0",
   "description": "One-click music download with DJ-ready metadata",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "cookies"],
   "host_permissions": [
     "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "*://*.youtube.com/*"
   ],
   "action": {
     "default_popup": "popup.html",

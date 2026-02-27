@@ -35,9 +35,7 @@ function readMetadataFromForm(): EnrichedMetadata {
     year: getInput("field-year").value !== "" ? parseInt(getInput("field-year").value, 10) : null,
     label: getInput("field-label").value || null,
     energy:
-      getInput("field-energy").value !== ""
-        ? parseInt(getInput("field-energy").value, 10)
-        : null,
+      getInput("field-energy").value !== "" ? parseInt(getInput("field-energy").value, 10) : null,
     bpm: getInput("field-bpm").value !== "" ? parseFloat(getInput("field-bpm").value) : null,
     key: getInput("field-key").value || null,
     comment: getInput("field-comment").value,
@@ -55,7 +53,15 @@ function getSelectedFormat(): string {
 function computeUserEditedFields(current: EnrichedMetadata): string[] {
   if (initialMetadata === null) return [];
   const fields: Array<keyof EnrichedMetadata> = [
-    "artist", "title", "genre", "year", "label", "energy", "bpm", "key", "comment",
+    "artist",
+    "title",
+    "genre",
+    "year",
+    "label",
+    "energy",
+    "bpm",
+    "key",
+    "comment",
   ];
   return fields.filter((field) => {
     const initial = initialMetadata![field];
@@ -77,8 +83,7 @@ function populatePreviewForm(metadata: EnrichedMetadata, source: string, url: st
 
   const enrichmentEl = document.getElementById("enrichment-source");
   if (enrichmentEl) {
-    enrichmentEl.textContent =
-      source === "claude" ? "Enriched by Claude" : "Metadata preview";
+    enrichmentEl.textContent = source === "claude" ? "Enriched by Claude" : "Metadata preview";
   }
 }
 
@@ -103,7 +108,10 @@ function renderQueueList(queue: QueueItem[]): void {
   const listEl = document.getElementById("queue-list");
   if (!listEl) return;
 
-  const recent = queue.slice().sort((a, b) => b.addedAt - a.addedAt).slice(0, 10);
+  const recent = queue
+    .slice()
+    .sort((a, b) => b.addedAt - a.addedAt)
+    .slice(0, 10);
 
   if (recent.length === 0) {
     listEl.innerHTML = "";
@@ -165,10 +173,14 @@ function renderExpandableDetail(item: QueueItem): string {
 
 function getStatusIcon(item: QueueItem): string {
   switch (item.status) {
-    case "pending": return "⏳";
-    case "downloading": return '<span class="spinner-inline"></span>';
-    case "complete": return "✓";
-    case "error": return "✗";
+    case "pending":
+      return "⏳";
+    case "downloading":
+      return '<span class="spinner-inline"></span>';
+    case "complete":
+      return "✓";
+    case "error":
+      return "✗";
   }
 }
 
@@ -179,7 +191,11 @@ function escapeHtml(str: string): string {
 }
 
 function escapeAttr(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 // --- Queue item event listeners ---

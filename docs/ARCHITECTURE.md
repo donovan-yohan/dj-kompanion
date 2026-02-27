@@ -31,6 +31,16 @@ Input: a URL from the browser. Output: a downloaded media file with DJ-ready met
 3. **Download**: Service worker sends URL + metadata + raw + user_edited_fields -> server runs yt-dlp download + Claude enrichment in parallel -> merge_metadata combines results respecting user edits -> tag_file writes metadata -> response includes final metadata + enrichment source
 4. **Retag**: User edits tags on completed item -> extension sends filepath + metadata to /api/retag -> server re-writes tags via tag_file (may rename file)
 
+## Logging
+
+Server logs to `~/.config/dj-kompanion/logs/server.log` via `server/logging_config.py`.
+
+- Rotating file handler: 500 KB max, 2 backups (1.5 MB total cap)
+- File handler captures DEBUG level (includes raw Claude CLI stdout/stderr)
+- Console handler at INFO level
+- `setup_logging()` called at module level in `server/app.py`
+- Enrichment module logs: raw Claude stdout at DEBUG, parse failures at WARNING
+
 ## Cross-Cutting Concerns
 
 | Concern | Pattern |

@@ -27,8 +27,18 @@ class EnrichedMetadata(BaseModel):
     comment: str = ""
 
 
+class CookieItem(BaseModel):
+    domain: str
+    name: str
+    value: str
+    path: str = "/"
+    secure: bool = False
+    expiration_date: float | None = None
+
+
 class PreviewRequest(BaseModel):
     url: str
+    cookies: list[CookieItem] = []
 
 
 class PreviewResponse(BaseModel):
@@ -47,6 +57,7 @@ class DownloadRequest(BaseModel):
     raw: RawMetadata
     format: str = "best"
     user_edited_fields: list[str] = []
+    cookies: list[CookieItem] = []
 
     @field_validator("format")
     @classmethod

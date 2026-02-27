@@ -26,12 +26,12 @@ _SUFFIXES = [
     "(Video)",
 ]
 
-_MARKDOWN_FENCE_RE = re.compile(r"^```\w*\s*\n(.*?)\n\s*```\s*$", re.DOTALL)
+_MARKDOWN_FENCE_RE = re.compile(r"```\w*\s*\n(.*?)\n\s*```", re.DOTALL)
 
 
 def _strip_markdown_fences(text: str) -> str:
-    """Strip markdown code fences from text if present."""
-    match = _MARKDOWN_FENCE_RE.match(text.strip())
+    """Extract content from markdown code fences if present."""
+    match = _MARKDOWN_FENCE_RE.search(text)
     if match:
         return match.group(1)
     return text
@@ -141,7 +141,7 @@ def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMeta
     try:
         raw_parsed: Any = json.loads(text_to_parse)
     except json.JSONDecodeError:
-        logger.warning("claude returned invalid JSON (first 200 chars): %.200s", text_to_parse)
+        logger.warning("claude returned invalid JSON (first 500 chars): %.500s", response_text)
         return None
 
     if not isinstance(raw_parsed, dict):
@@ -180,48 +180,14 @@ async def is_claude_available() -> bool:
         return False
 
 
-async def enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata:
-    """Use claude CLI to parse and enrich raw metadata.
+async def _run_claude(raw: RawMetadata, model: str) -> EnrichedMetadata | None:
+    """Run claude CLI and parse the response.
 
-    Falls back to basic parsing if claude is unavailable.
-    Never raises -- always returns an EnrichedMetadata.
+    Returns enriched metadata on success, None on any failure.
+    Handles availability check, subprocess execution, and debug logging.
     """
     if not await is_claude_available():
-        logger.warning("claude CLI not found on PATH; falling back to basic_enrich")
-        return basic_enrich(raw)
-
-    prompt = _PROMPT_TEMPLATE.format(
-        raw_metadata_json=raw.model_dump_json(indent=2),
-    )
-
-    cmd = ["claude", "-p", "--model", model, "--output-format", "json", prompt]
-
-    try:
-        result = await asyncio.to_thread(_run_subprocess, cmd, 30.0)
-    except subprocess.TimeoutExpired:
-        logger.warning("claude timed out after 30s, falling back to basic_enrich")
-        return basic_enrich(raw)
-    except (FileNotFoundError, OSError) as e:
-        logger.warning("claude CLI error: %s", e)
-        return basic_enrich(raw)
-
-    if result.returncode != 0:
-        logger.warning("claude returned non-zero exit code %d", result.returncode)
-        return basic_enrich(raw)
-
-    enriched = _parse_claude_response(result.stdout, raw)
-    if enriched is None:
-        return basic_enrich(raw)
-
-    return enriched
-
-
-async def try_enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata | None:
-    """Like enrich_metadata, but returns None instead of falling back.
-
-    Used by the download endpoint to distinguish Claude success from failure.
-    """
-    if not await is_claude_available():
+        logger.warning("claude CLI not found on PATH")
         return None
 
     prompt = _PROMPT_TEMPLATE.format(
@@ -243,4 +209,25 @@ async def try_enrich_metadata(raw: RawMetadata, model: str = "haiku") -> Enriche
         logger.warning("claude returned non-zero exit code %d", result.returncode)
         return None
 
+    logger.debug("claude raw stdout: %.1000s", result.stdout)
+    if result.stderr:
+        logger.debug("claude stderr: %.500s", result.stderr)
+
     return _parse_claude_response(result.stdout, raw)
+
+
+async def enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata:
+    """Use claude CLI to parse and enrich raw metadata.
+
+    Falls back to basic parsing if claude is unavailable.
+    Never raises -- always returns an EnrichedMetadata.
+    """
+    return await _run_claude(raw, model) or basic_enrich(raw)
+
+
+async def try_enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata | None:
+    """Like enrich_metadata, but returns None instead of falling back.
+
+    Used by the download endpoint to distinguish Claude success from failure.
+    """
+    return await _run_claude(raw, model)

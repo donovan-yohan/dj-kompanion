@@ -26,12 +26,22 @@ export interface PreviewResponse {
   enrichment_source: "claude" | "none";
 }
 
+export interface CookieData {
+  domain: string;
+  name: string;
+  value: string;
+  path: string;
+  secure: boolean;
+  expiration_date: number | null;
+}
+
 export interface DownloadRequest {
   url: string;
   metadata: EnrichedMetadata;
   raw: RawMetadata;
   format: string;
   user_edited_fields: string[];
+  cookies?: CookieData[];
 }
 
 export interface DownloadResponse {

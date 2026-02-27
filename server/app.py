@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from server.config import load_config
 from server.downloader import DownloadError, download_audio, extract_metadata
 from server.enrichment import basic_enrich, is_claude_available, merge_metadata, try_enrich_metadata
+from server.logging_config import setup_logging
 from server.models import (
     DownloadRequest,
     DownloadResponse,
@@ -22,6 +23,8 @@ from server.models import (
     RetagResponse,
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
+
+setup_logging()
 
 app = FastAPI(title="dj-kompanion", version="0.1.0")
 
@@ -58,7 +61,7 @@ async def health() -> HealthResponse:
 @app.post("/api/preview", response_model=PreviewResponse)
 async def preview(req: PreviewRequest) -> PreviewResponse:
     try:
-        raw = await extract_metadata(req.url)
+        raw = await extract_metadata(req.url, cookies=req.cookies)
     except DownloadError as e:
         raise HTTPException(
             status_code=404,
@@ -80,7 +83,7 @@ async def download(req: DownloadRequest) -> DownloadResponse:
 
     if use_llm:
         results = await asyncio.gather(
-            download_audio(req.url, cfg.output_dir, filename, req.format),
+            download_audio(req.url, cfg.output_dir, filename, req.format, cookies=req.cookies),
             try_enrich_metadata(req.raw, model=cfg.llm.model),
             return_exceptions=True,
         )
@@ -126,7 +129,9 @@ async def download(req: DownloadRequest) -> DownloadResponse:
             enrichment_source = "claude"
     else:
         try:
-            filepath = await download_audio(req.url, cfg.output_dir, filename, req.format)
+            filepath = await download_audio(
+                req.url, cfg.output_dir, filename, req.format, cookies=req.cookies
+            )
         except DownloadError as e:
             raise HTTPException(
                 status_code=500,

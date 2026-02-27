@@ -13,6 +13,7 @@ A personal convenience tool wrapping yt-dlp with a Chrome extension and local se
 | Build extension | `cd extension && npm run build` |
 | Lint + format (Extension) | `cd extension && npm run lint && npm run format` |
 | Type check (Extension) | `cd extension && npx tsc --noEmit` |
+| Server logs | `~/.config/dj-kompanion/logs/server.log` |
 
 ## Documentation Map
 

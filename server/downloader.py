@@ -1,12 +1,37 @@
 from __future__ import annotations
 
 import asyncio
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yt_dlp  # type: ignore[import-untyped]
 
-from server.models import RawMetadata
+from server.models import CookieItem, RawMetadata
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+
+@contextmanager
+def _cookie_file(cookies: list[CookieItem]) -> Iterator[str | None]:
+    """Write cookies to a temporary Netscape-format cookie file for yt-dlp."""
+    if not cookies:
+        yield None
+        return
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=True) as f:
+        f.write("# Netscape HTTP Cookie File\n")
+        for c in cookies:
+            host_only = not c.domain.startswith(".")
+            expiry = int(c.expiration_date) if c.expiration_date else 0
+            f.write(
+                f"{c.domain}\t{'FALSE' if host_only else 'TRUE'}\t{c.path}"
+                f"\t{'TRUE' if c.secure else 'FALSE'}\t{expiry}\t{c.name}\t{c.value}\n"
+            )
+        f.flush()
+        yield f.name
 
 
 class DownloadError(Exception):
@@ -41,30 +66,33 @@ def _parse_info(info: dict[str, Any], url: str) -> RawMetadata:
     )
 
 
-def _extract_metadata_sync(url: str) -> RawMetadata:
-    ydl_opts: dict[str, Any] = {
-        "quiet": True,
-        "no_warnings": True,
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info: dict[str, Any] | None = ydl.extract_info(url, download=False)
-            if info is None:
-                raise DownloadError("No metadata returned", url=url)
-            return _parse_info(info, url)
-    except DownloadError:
-        raise
-    except Exception as exc:
-        raise DownloadError(str(exc), url=url) from exc
+def _extract_metadata_sync(url: str, cookies: list[CookieItem] | None = None) -> RawMetadata:
+    with _cookie_file(cookies or []) as cookie_path:
+        ydl_opts: dict[str, Any] = {
+            "quiet": True,
+            "no_warnings": True,
+        }
+        if cookie_path:
+            ydl_opts["cookiefile"] = cookie_path
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info: dict[str, Any] | None = ydl.extract_info(url, download=False)
+                if info is None:
+                    raise DownloadError("No metadata returned", url=url)
+                return _parse_info(info, url)
+        except DownloadError:
+            raise
+        except Exception as exc:
+            raise DownloadError(str(exc), url=url) from exc
 
 
-async def extract_metadata(url: str) -> RawMetadata:
+async def extract_metadata(url: str, cookies: list[CookieItem] | None = None) -> RawMetadata:
     """Extract metadata from URL without downloading.
 
     Used for the preview step.
     Raises DownloadError on failure.
     """
-    return await asyncio.to_thread(_extract_metadata_sync, url)
+    return await asyncio.to_thread(_extract_metadata_sync, url, cookies)
 
 
 _DEFAULT_AUDIO_FORMAT = "m4a"
@@ -75,34 +103,38 @@ def _download_audio_sync(
     output_dir: Path,
     filename: str,
     preferred_format: str,
+    cookies: list[CookieItem] | None = None,
 ) -> Path:
     audio_format = _DEFAULT_AUDIO_FORMAT if preferred_format == "best" else preferred_format
 
-    ydl_opts: dict[str, Any] = {
-        "format": "bestaudio/best",
-        "outtmpl": str(output_dir / filename) + ".%(ext)s",
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": audio_format,
-                "preferredquality": "0",
-            }
-        ],
-        "quiet": True,
-    }
+    with _cookie_file(cookies or []) as cookie_path:
+        ydl_opts: dict[str, Any] = {
+            "format": "bestaudio/best",
+            "outtmpl": str(output_dir / filename) + ".%(ext)s",
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": audio_format,
+                    "preferredquality": "0",
+                }
+            ],
+            "quiet": True,
+        }
+        if cookie_path:
+            ydl_opts["cookiefile"] = cookie_path
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info: dict[str, Any] | None = ydl.extract_info(url, download=True)
-            if info is None:
-                raise DownloadError("Download returned no info", url=url)
-            filepath: str = ydl.prepare_filename(info)
-            path = Path(filepath).with_suffix(f".{audio_format}")
-            return path
-    except DownloadError:
-        raise
-    except Exception as exc:
-        raise DownloadError(str(exc), url=url) from exc
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info: dict[str, Any] | None = ydl.extract_info(url, download=True)
+                if info is None:
+                    raise DownloadError("Download returned no info", url=url)
+                filepath: str = ydl.prepare_filename(info)
+                path = Path(filepath).with_suffix(f".{audio_format}")
+                return path
+        except DownloadError:
+            raise
+        except Exception as exc:
+            raise DownloadError(str(exc), url=url) from exc
 
 
 async def download_audio(
@@ -110,6 +142,7 @@ async def download_audio(
     output_dir: Path,
     filename: str,
     preferred_format: str = "best",
+    cookies: list[CookieItem] | None = None,
 ) -> Path:
     """Download best available audio, optionally convert format.
 
@@ -117,5 +150,5 @@ async def download_audio(
     Raises DownloadError on failure.
     """
     return await asyncio.to_thread(
-        _download_audio_sync, url, output_dir, filename, preferred_format
+        _download_audio_sync, url, output_dir, filename, preferred_format, cookies
     )

@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from server.enrichment import (
+    _strip_markdown_fences,
     basic_enrich,
     enrich_metadata,
     is_claude_available,
@@ -35,6 +36,7 @@ def make_raw(
 def make_process(stdout: str, returncode: int = 0) -> subprocess.CompletedProcess[str]:
     mock: subprocess.CompletedProcess[str] = MagicMock(spec=subprocess.CompletedProcess)
     mock.stdout = stdout
+    mock.stderr = ""
     mock.returncode = returncode
     return mock
 
@@ -307,6 +309,84 @@ def test_try_enrich_handles_markdown_fenced_json() -> None:
 
     assert result is not None
     assert result.artist == "Fred again.."
+
+
+def test_enrich_metadata_handles_fenced_json_with_trailing_text() -> None:
+    """Test that fences are extracted even when model adds explanation after."""
+    raw = make_raw()
+    inner = claude_json(artist="Ninajirachi", title="iPod Touch", genre="Electronic")
+    fenced = f"```json\n{inner}\n```\n\nHere is the extracted metadata."
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(fenced)):
+        result = asyncio.run(enrich_metadata(raw))
+
+    assert result.artist == "Ninajirachi"
+    assert result.title == "iPod Touch"
+    assert result.genre == "Electronic"
+
+
+def test_enrich_metadata_handles_fenced_json_with_leading_text() -> None:
+    """Test that fences are extracted even when model adds preamble before."""
+    raw = make_raw()
+    inner = claude_json(artist="Bicep", title="GLUE", genre="House")
+    fenced = f"Here is the metadata:\n```json\n{inner}\n```"
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(fenced)):
+        result = asyncio.run(enrich_metadata(raw))
+
+    assert result.artist == "Bicep"
+    assert result.title == "GLUE"
+    assert result.genre == "House"
+
+
+def test_enrich_metadata_handles_envelope_with_fenced_result_and_trailing_text() -> None:
+    """Test JSON envelope where result has fenced JSON plus trailing explanation."""
+    raw = make_raw()
+    inner = claude_json(artist="Bonobo", title="Kong", genre="Downtempo")
+    result_text = f"```json\n{inner}\n```\n\nI extracted this from the video title."
+    envelope = json.dumps({"type": "result", "result": result_text})
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(envelope)):
+        result = asyncio.run(enrich_metadata(raw))
+
+    assert result.artist == "Bonobo"
+    assert result.title == "Kong"
+    assert result.genre == "Downtempo"
+
+
+# --- _strip_markdown_fences unit tests ---
+
+
+def test_strip_fences_clean_block() -> None:
+    inner = '{"key": "value"}'
+    assert _strip_markdown_fences(f"```json\n{inner}\n```") == inner
+
+
+def test_strip_fences_no_language() -> None:
+    inner = '{"key": "value"}'
+    assert _strip_markdown_fences(f"```\n{inner}\n```") == inner
+
+
+def test_strip_fences_trailing_text() -> None:
+    inner = '{"key": "value"}'
+    text = f"```json\n{inner}\n```\n\nSome explanation here."
+    assert _strip_markdown_fences(text) == inner
+
+
+def test_strip_fences_leading_text() -> None:
+    inner = '{"key": "value"}'
+    text = f"Here is the result:\n```json\n{inner}\n```"
+    assert _strip_markdown_fences(text) == inner
+
+
+def test_strip_fences_no_fences_returns_original() -> None:
+    text = '{"key": "value"}'
+    assert _strip_markdown_fences(text) == text
+
+
+def test_strip_fences_plain_text_returns_original() -> None:
+    text = "no fences here"
+    assert _strip_markdown_fences(text) == text
 
 
 def test_enrich_metadata_uses_custom_model() -> None:

@@ -1,5 +1,28 @@
 import { DEFAULT_HOST, DEFAULT_PORT } from "./constants.js";
-import type { DownloadRequest, DownloadResponse, PreviewResponse, RetagRequest, RetagResponse } from "./types.js";
+import type {
+  CookieData,
+  DownloadRequest,
+  DownloadResponse,
+  PreviewResponse,
+  RetagRequest,
+  RetagResponse,
+} from "./types.js";
+
+export async function getYouTubeCookies(): Promise<CookieData[]> {
+  try {
+    const cookies = await chrome.cookies.getAll({ domain: ".youtube.com" });
+    return cookies.map((c) => ({
+      domain: c.domain,
+      name: c.name,
+      value: c.value,
+      path: c.path,
+      secure: c.secure,
+      expiration_date: c.expirationDate ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export async function getBaseUrl(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -16,7 +39,7 @@ export async function getBaseUrl(): Promise<string> {
 export async function fetchWithTimeout(
   url: string,
   init: RequestInit,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -42,14 +65,15 @@ export async function healthCheck(): Promise<boolean> {
 
 export async function fetchPreview(url: string): Promise<PreviewResponse> {
   const baseUrl = await getBaseUrl();
+  const cookies = await getYouTubeCookies();
   const response = await fetchWithTimeout(
     `${baseUrl}/api/preview`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, cookies }),
     },
-    10000,
+    10000
   );
   if (!response.ok) {
     const text = await response.text();
@@ -67,7 +91,7 @@ export async function requestDownload(req: DownloadRequest): Promise<DownloadRes
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     },
-    120000,
+    120000
   );
   if (!response.ok) {
     const text = await response.text();
@@ -85,7 +109,7 @@ export async function requestRetag(req: RetagRequest): Promise<RetagResponse> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     },
-    30000,
+    30000
   );
   if (!response.ok) {
     const text = await response.text();

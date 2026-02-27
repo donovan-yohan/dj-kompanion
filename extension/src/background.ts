@@ -1,4 +1,4 @@
-import { getBaseUrl, fetchWithTimeout } from "./api.js";
+import { getBaseUrl, fetchWithTimeout, getYouTubeCookies } from "./api.js";
 import type { QueueItem, DownloadRequest, DownloadResponse } from "./types.js";
 
 // --- Queue storage helpers ---
@@ -25,9 +25,7 @@ async function updateItem(id: string, updates: Partial<QueueItem>): Promise<void
 
 async function updateBadge(): Promise<void> {
   const queue = await readQueue();
-  const active = queue.filter(
-    (i) => i.status === "pending" || i.status === "downloading",
-  ).length;
+  const active = queue.filter((i) => i.status === "pending" || i.status === "downloading").length;
   if (active > 0) {
     await chrome.action.setBadgeText({ text: String(active) });
     await chrome.action.setBadgeBackgroundColor({ color: "#3b82f6" });
@@ -54,12 +52,14 @@ async function processQueue(): Promise<void> {
       await updateBadge();
 
       try {
+        const cookies = await getYouTubeCookies();
         const req: DownloadRequest = {
           url: pending.url,
           metadata: pending.metadata,
           raw: pending.raw,
           format: pending.format,
           user_edited_fields: pending.userEditedFields,
+          cookies,
         };
 
         const baseUrl = await getBaseUrl();
@@ -70,7 +70,7 @@ async function processQueue(): Promise<void> {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(req),
           },
-          120000,
+          120000
         );
 
         if (!response.ok) {
