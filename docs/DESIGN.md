@@ -21,6 +21,7 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 | Deferred enrichment | Preview uses basic_enrich (instant); download runs Claude in parallel with yt-dlp | Deferred enrichment plan |
 | User-edit tracking | Extension tracks which fields user modified; merge preserves user edits over Claude | Deferred enrichment plan |
 | Three-way merge | Priority: user-edited > Claude non-null > basic fallback; comment always from user | Deferred enrichment plan |
+| Download queue in extension | Service worker processes downloads in background; chrome.storage.local is source of truth; popup is stateless renderer | Download queue design |
 
 ## Deep Docs
 
