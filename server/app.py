@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 import yt_dlp  # type: ignore[import-untyped]
 from fastapi import FastAPI, HTTPException, Request
@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from server.config import load_config
 from server.downloader import DownloadError, download_audio, extract_metadata
-from server.enrichment import enrich_metadata, is_claude_available
+from server.enrichment import basic_enrich, is_claude_available
 from server.models import (
     DownloadRequest,
     DownloadResponse,
@@ -61,20 +61,8 @@ async def preview(req: PreviewRequest) -> PreviewResponse:
             detail={"error": "extraction_failed", "message": e.message, "url": e.url},
         ) from e
 
-    cfg = load_config()
-    use_llm = cfg.llm.enabled and await is_claude_available()
-
-    source: Literal["claude", "none"]
-    if use_llm:
-        enriched = await enrich_metadata(raw, model=cfg.llm.model)
-        source = "claude"
-    else:
-        from server.enrichment import basic_enrich
-
-        enriched = basic_enrich(raw)
-        source = "none"
-
-    return PreviewResponse(raw=raw, enriched=enriched, enrichment_source=source)
+    enriched = basic_enrich(raw)
+    return PreviewResponse(raw=raw, enriched=enriched, enrichment_source="none")
 
 
 @app.post("/api/download", response_model=DownloadResponse)
