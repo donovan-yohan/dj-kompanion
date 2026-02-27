@@ -24,8 +24,8 @@ A personal convenience tool wrapping [yt-dlp](https://github.com/yt-dlp/yt-dlp) 
 # Install Python dependencies
 uv sync
 
-# Run the server (default port 9234)
-uv run uvicorn server.app:app --reload
+# Run the server on port 9234
+uv run uvicorn server.app:app --reload --port 9234
 ```
 
 ### Chrome Extension
@@ -50,8 +50,8 @@ Then load the extension in Chrome:
 ### Configuration
 
 ```bash
-# Create/edit the config file (~/.config/yt-dlp-dj/config.yaml)
-uv run yt-dlp-dj config
+# Create/edit the config file (~/.config/dj-kompanion/config.yaml)
+uv run dj-kompanion config
 ```
 
 The config file controls:
@@ -62,7 +62,7 @@ The config file controls:
 
 ## Usage
 
-1. Start the server: `uv run uvicorn server.app:app --reload`
+1. Start the server: `uv run uvicorn server.app:app --reload --port 9234`
 2. Open a page with audio/video content (YouTube, SoundCloud, Bandcamp, etc.)
 3. Click the dj-kompanion extension icon
 4. Review and edit the metadata preview
@@ -74,17 +74,17 @@ You can also download directly from the command line:
 
 ```bash
 # Download with metadata enrichment
-uv run yt-dlp-dj download "https://www.youtube.com/watch?v=..."
+uv run dj-kompanion download "https://www.youtube.com/watch?v=..."
 
 # Specify format
-uv run yt-dlp-dj download "https://www.youtube.com/watch?v=..." --format mp3
+uv run dj-kompanion download "https://www.youtube.com/watch?v=..." --format mp3
 ```
 
 ## Development
 
 | Action | Command |
 |--------|---------|
-| Server (dev mode) | `uv run uvicorn server.app:app --reload` |
+| Server (dev mode) | `uv run uvicorn server.app:app --reload --port 9234` |
 | Run tests | `uv run pytest` |
 | Type check (Python) | `uv run mypy server/` |
 | Lint (Python) | `uv run ruff check .` |

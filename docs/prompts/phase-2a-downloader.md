@@ -1,4 +1,4 @@
-You are implementing Phase 2a of the yt-dlp-dj project: Downloader Module.
+You are implementing Phase 2a of the dj-kompanion project: Downloader Module.
 
 ## Instructions
 

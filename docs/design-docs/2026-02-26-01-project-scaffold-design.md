@@ -3,27 +3,27 @@
 **Date:** 2026-02-26
 **Status:** Approved
 **Phase:** 1 (Foundation)
-**Parent Design:** `2026-02-26-yt-dlp-dj-design.md`
+**Parent Design:** `2026-02-26-dj-kompanion-design.md`
 
 ## Context
 
-yt-dlp-dj is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the project foundation: directory structure, Python packaging, config system, dev tooling, and the CLI entry point skeleton.
+dj-kompanion is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the project foundation: directory structure, Python packaging, config system, dev tooling, and the CLI entry point skeleton.
 
 Everything else (downloader, tagger, enrichment, server, extension) builds on top of this scaffold.
 
 ## Goal
 
 A working project skeleton where:
-- `uv run yt-dlp-dj --help` shows the CLI
+- `uv run dj-kompanion --help` shows the CLI
 - `uv run pytest` runs (with zero tests passing — just the harness)
 - `uv run mypy server/` passes with strict mode
 - `uv run ruff check .` passes
-- Config loads from `~/.config/yt-dlp-dj/config.yaml` with sensible defaults
+- Config loads from `~/.config/dj-kompanion/config.yaml` with sensible defaults
 
 ## Project Structure
 
 ```
-yt-dlp-dj/
+dj-kompanion/
 ├── .gitignore
 ├── CLAUDE.md                    # (already exists)
 ├── docs/                        # (already exists)
@@ -50,7 +50,7 @@ yt-dlp-dj/
 
 ```toml
 [project]
-name = "yt-dlp-dj"
+name = "dj-kompanion"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -63,7 +63,7 @@ dependencies = [
 ]
 
 [project.scripts]
-yt-dlp-dj = "server.cli:app"
+dj-kompanion = "server.cli:app"
 
 [tool.mypy]
 strict = true
@@ -81,7 +81,7 @@ testpaths = ["tests"]
 
 ## Config System
 
-`server/config.py` — Loads config from `~/.config/yt-dlp-dj/config.yaml`, merging with defaults.
+`server/config.py` — Loads config from `~/.config/dj-kompanion/config.yaml`, merging with defaults.
 
 ```python
 from pydantic import BaseModel
@@ -99,7 +99,7 @@ class AppConfig(BaseModel):
     llm: LLMConfig = LLMConfig()
 ```
 
-Config file created on first run if it doesn't exist. `yt-dlp-dj config` opens it in `$EDITOR`.
+Config file created on first run if it doesn't exist. `dj-kompanion config` opens it in `$EDITOR`.
 
 ## Pydantic Models
 
@@ -181,10 +181,10 @@ export interface DownloadResponse {
 `server/cli.py` — typer app with stubbed commands.
 
 ```
-yt-dlp-dj serve              # Start FastAPI server
-yt-dlp-dj serve -p 8080      # Custom port
-yt-dlp-dj config             # Open config in $EDITOR
-yt-dlp-dj download <URL>     # Direct CLI download (implemented later)
+dj-kompanion serve              # Start FastAPI server
+dj-kompanion serve -p 8080      # Custom port
+dj-kompanion config             # Open config in $EDITOR
+dj-kompanion download <URL>     # Direct CLI download (implemented later)
 ```
 
 The `serve` and `download` commands are stubs that print "not implemented yet" — they'll be wired up in the server phase.
@@ -203,7 +203,7 @@ The `serve` and `download` commands are stubs that print "not implemented yet" �
 Minimal setup with build/lint/format scripts:
 ```json
 {
-  "name": "yt-dlp-dj-extension",
+  "name": "dj-kompanion-extension",
   "private": true,
   "scripts": {
     "build": "esbuild src/popup.ts src/background.ts src/options.ts --bundle --outdir=dist",
@@ -225,8 +225,8 @@ Minimal setup with build/lint/format scripts:
 
 - [ ] `git init` and `.gitignore` set up
 - [ ] `uv sync` installs all dependencies
-- [ ] `uv run yt-dlp-dj --help` shows CLI help
-- [ ] `uv run yt-dlp-dj config` creates default config file
+- [ ] `uv run dj-kompanion --help` shows CLI help
+- [ ] `uv run dj-kompanion config` creates default config file
 - [ ] `uv run mypy server/` passes with strict mode
 - [ ] `uv run ruff check .` passes
 - [ ] `uv run pytest` runs (empty test suite, 0 tests)

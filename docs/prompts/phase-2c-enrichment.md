@@ -1,4 +1,4 @@
-You are implementing Phase 2c of the yt-dlp-dj project: LLM Enrichment Module.
+You are implementing Phase 2c of the dj-kompanion project: LLM Enrichment Module.
 
 ## Instructions
 

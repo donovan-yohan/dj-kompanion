@@ -3,20 +3,20 @@
 **Date:** 2026-02-26
 **Status:** Approved
 **Phase:** 3 (Integration)
-**Parent Design:** `2026-02-26-yt-dlp-dj-design.md`
+**Parent Design:** `2026-02-26-dj-kompanion-design.md`
 **Depends On:** Phase 1 (Scaffold), Phase 2a (Downloader), 2b (Tagger), 2c (Enrichment)
 
 ## Context
 
-yt-dlp-dj is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the FastAPI server that ties the downloader, tagger, and enrichment modules together behind HTTP endpoints, plus the CLI commands that control it.
+dj-kompanion is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the FastAPI server that ties the downloader, tagger, and enrichment modules together behind HTTP endpoints, plus the CLI commands that control it.
 
 ## Goal
 
 A working FastAPI server where:
-- `yt-dlp-dj serve` starts the server on a configured port
+- `dj-kompanion serve` starts the server on a configured port
 - `POST /api/preview` extracts and enriches metadata from a URL
 - `POST /api/download` downloads, tags, and saves audio to the DJ folder
-- `yt-dlp-dj download <URL>` does the full pipeline from the command line
+- `dj-kompanion download <URL>` does the full pipeline from the command line
 - CORS is configured so the Chrome extension can connect
 
 ## API Endpoints
@@ -131,17 +131,17 @@ HTTP status codes:
 
 Wire up the typer CLI stubs from Phase 1:
 
-### `yt-dlp-dj serve`
+### `dj-kompanion serve`
 ```python
 @app.command()
 def serve(port: int = None):
-    """Start the yt-dlp-dj server."""
+    """Start the dj-kompanion server."""
     config = load_config()
     port = port or config.server_port
     uvicorn.run("server.app:app", host="127.0.0.1", port=port)
 ```
 
-### `yt-dlp-dj download <URL>`
+### `dj-kompanion download <URL>`
 ```python
 @app.command()
 def download(url: str, format: str = None):
@@ -165,7 +165,7 @@ The CLI `download` command runs the full pipeline without needing the server —
 from fastapi import FastAPI
 from server.config import load_config
 
-app = FastAPI(title="yt-dlp-dj", version="0.1.0")
+app = FastAPI(title="dj-kompanion", version="0.1.0")
 config = load_config()
 
 # Mount endpoints...
@@ -183,10 +183,10 @@ The config is loaded once at startup. If the config file changes, restart the se
 
 ## Success Criteria
 
-- [ ] `yt-dlp-dj serve` starts server, responds to `/api/health`
+- [ ] `dj-kompanion serve` starts server, responds to `/api/health`
 - [ ] `POST /api/preview` returns enriched metadata for a valid URL
 - [ ] `POST /api/download` downloads, tags, and saves a file
-- [ ] `yt-dlp-dj download <URL>` works end-to-end from CLI
+- [ ] `dj-kompanion download <URL>` works end-to-end from CLI
 - [ ] CORS allows Chrome extension origin
 - [ ] Error responses are structured JSON with appropriate status codes
 - [ ] `uv run mypy server/app.py` passes strict

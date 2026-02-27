@@ -3,12 +3,12 @@
 **Date:** 2026-02-26
 **Status:** Approved
 **Phase:** 2b (Parallel Module)
-**Parent Design:** `2026-02-26-yt-dlp-dj-design.md`
+**Parent Design:** `2026-02-26-dj-kompanion-design.md`
 **Depends On:** Phase 1 (Project Scaffold) must be complete
 
 ## Context
 
-yt-dlp-dj is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the tagger module — the mutagen-based component that embeds metadata into audio files in a format Virtual DJ can read.
+dj-kompanion is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the tagger module — the mutagen-based component that embeds metadata into audio files in a format Virtual DJ can read.
 
 ## Goal
 

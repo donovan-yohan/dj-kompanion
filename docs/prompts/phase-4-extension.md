@@ -1,4 +1,4 @@
-You are implementing Phase 4 of the yt-dlp-dj project: Chrome Extension.
+You are implementing Phase 4 of the dj-kompanion project: Chrome Extension.
 
 ## Instructions
 

@@ -19,7 +19,7 @@ from server.models import (
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
 
-app = FastAPI(title="yt-dlp-dj", version="0.1.0")
+app = FastAPI(title="dj-kompanion", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

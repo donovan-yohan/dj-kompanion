@@ -1,5 +1,5 @@
 [project]
-name = "yt-dlp-dj"
+name = "dj-kompanion"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-yt-dlp-dj = "server.cli:app"
+dj-kompanion = "server.cli:app"
 
 [build-system]
 requires = ["hatchling"]

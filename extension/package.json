@@ -1,5 +1,5 @@
 {
-  "name": "yt-dlp-dj-extension",
+  "name": "dj-kompanion-extension",
   "type": "module",
   "private": true,
   "scripts": {

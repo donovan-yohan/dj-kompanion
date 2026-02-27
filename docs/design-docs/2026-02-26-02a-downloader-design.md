@@ -3,12 +3,12 @@
 **Date:** 2026-02-26
 **Status:** Approved
 **Phase:** 2a (Parallel Module)
-**Parent Design:** `2026-02-26-yt-dlp-dj-design.md`
+**Parent Design:** `2026-02-26-dj-kompanion-design.md`
 **Depends On:** Phase 1 (Project Scaffold) must be complete
 
 ## Context
 
-yt-dlp-dj is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the downloader module — the yt-dlp wrapper that handles metadata extraction and audio downloading.
+dj-kompanion is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the downloader module — the yt-dlp wrapper that handles metadata extraction and audio downloading.
 
 ## Goal
 

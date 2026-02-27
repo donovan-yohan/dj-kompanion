@@ -1,4 +1,4 @@
-You are implementing Phase 3 of the yt-dlp-dj project: FastAPI Server & CLI.
+You are implementing Phase 3 of the dj-kompanion project: FastAPI Server & CLI.
 
 ## Instructions
 
@@ -18,10 +18,10 @@ You are implementing Phase 3 of the yt-dlp-dj project: FastAPI Server & CLI.
 
 ## Success Criteria (from design doc)
 
-- [ ] `yt-dlp-dj serve` starts server, responds to `/api/health`
+- [ ] `dj-kompanion serve` starts server, responds to `/api/health`
 - [ ] `POST /api/preview` returns enriched metadata for a valid URL
 - [ ] `POST /api/download` downloads, tags, and saves a file
-- [ ] `yt-dlp-dj download <URL>` works end-to-end from CLI
+- [ ] `dj-kompanion download <URL>` works end-to-end from CLI
 - [ ] CORS allows Chrome extension origin
 - [ ] Error responses are structured JSON with appropriate status codes
 - [ ] `uv run mypy server/` passes strict (entire server package)

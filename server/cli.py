@@ -12,7 +12,7 @@ from server.enrichment import basic_enrich, enrich_metadata, is_claude_available
 from server.tagger import TaggingError, build_download_filename, tag_file
 
 app = typer.Typer(
-    name="yt-dlp-dj",
+    name="dj-kompanion",
     help="One-click music downloading with DJ-ready metadata.",
     no_args_is_help=True,
 )

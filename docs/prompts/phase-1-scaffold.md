@@ -1,4 +1,4 @@
-You are implementing Phase 1 of the yt-dlp-dj project: Project Scaffold & Config.
+You are implementing Phase 1 of the dj-kompanion project: Project Scaffold & Config.
 
 ## Instructions
 
@@ -13,8 +13,8 @@ You are implementing Phase 1 of the yt-dlp-dj project: Project Scaffold & Config
 
 - [ ] `git init` and `.gitignore` set up
 - [ ] `uv sync` installs all dependencies
-- [ ] `uv run yt-dlp-dj --help` shows CLI help
-- [ ] `uv run yt-dlp-dj config` creates default config file
+- [ ] `uv run dj-kompanion --help` shows CLI help
+- [ ] `uv run dj-kompanion config` creates default config file
 - [ ] `uv run mypy server/` passes with strict mode
 - [ ] `uv run ruff check .` passes
 - [ ] `uv run pytest` runs (empty test suite, 0 tests)

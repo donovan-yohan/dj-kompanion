@@ -1,4 +1,4 @@
-# yt-dlp-dj
+# dj-kompanion
 
 A personal convenience tool wrapping yt-dlp with a Chrome extension and local server for one-click audio/video downloading with DJ-ready metadata (Virtual DJ format). Optional LLM-assisted metadata enrichment.
 
@@ -6,7 +6,7 @@ A personal convenience tool wrapping yt-dlp with a Chrome extension and local se
 
 | Action | Command |
 |--------|---------|
-| Server dev | `uv run uvicorn server.app:app --reload` |
+| Server dev | `uv run uvicorn server.app:app --reload --port 9234` |
 | Type check (Python) | `uv run mypy server/` |
 | Lint + format (Python) | `uv run ruff check . && uv run ruff format .` |
 | Test | `uv run pytest` |

@@ -1,4 +1,4 @@
-You are implementing Phase 2b of the yt-dlp-dj project: Tagger Module.
+You are implementing Phase 2b of the dj-kompanion project: Tagger Module.
 
 ## Instructions
 

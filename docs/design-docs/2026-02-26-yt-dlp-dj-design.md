@@ -1,4 +1,4 @@
-# yt-dlp-dj Design
+# dj-kompanion Design
 
 **Date:** 2026-02-26
 **Status:** Approved
@@ -30,7 +30,7 @@ A Chrome extension + Python local server that provides one-click preview-and-dow
 **Components:**
 1. **Chrome Extension (Manifest V3, TypeScript)** — Thin UI. Grabs current tab URL, sends to server, displays metadata for editing, confirms download.
 2. **Python Server (FastAPI)** — The brain. yt-dlp for extraction/download, mutagen for tagging, claude CLI for LLM enrichment.
-3. **Config** — `~/.config/yt-dlp-dj/config.yaml` for output folder, format preferences, LLM settings.
+3. **Config** — `~/.config/dj-kompanion/config.yaml` for output folder, format preferences, LLM settings.
 
 **Key decisions:**
 - FastAPI over Flask — async support, built-in OpenAPI docs
@@ -83,7 +83,7 @@ Three states:
 2. **Preview** — Editable metadata form, format selector (Best / MP3 / FLAC), "Download" button
 3. **Complete** — Success confirmation with filename, output path, "Open Folder" link
 
-If server is not running: clear message with "Start the local server first: `yt-dlp-dj serve`"
+If server is not running: clear message with "Start the local server first: `dj-kompanion serve`"
 
 Extension icon badge shows indicator during download. Connection to `http://localhost:PORT` (configurable in extension options page).
 
@@ -100,10 +100,10 @@ PUT  /api/config              → update config
 
 **CLI commands:**
 ```
-yt-dlp-dj serve              # Start server (default port 9234)
-yt-dlp-dj serve -p 8080      # Custom port
-yt-dlp-dj config             # Open/create config file
-yt-dlp-dj download <URL>     # Direct CLI download (no browser)
+dj-kompanion serve              # Start server (default port 9234)
+dj-kompanion serve -p 8080      # Custom port
+dj-kompanion config             # Open/create config file
+dj-kompanion download <URL>     # Direct CLI download (no browser)
 ```
 
 ## Tagging Strategy
@@ -126,7 +126,7 @@ VDJ natively reads: Artist, Title, Genre, Year, BPM, Key, Comment. Custom fields
 
 ## Config
 
-`~/.config/yt-dlp-dj/config.yaml`:
+`~/.config/dj-kompanion/config.yaml`:
 ```yaml
 output_dir: ~/Music/DJ Library
 preferred_format: best  # best | mp3 | flac | m4a
@@ -141,7 +141,7 @@ llm:
 ## Project Structure
 
 ```
-yt-dlp-dj/
+dj-kompanion/
 ├── CLAUDE.md
 ├── docs/
 ├── pyproject.toml               # ruff, mypy, pytest config

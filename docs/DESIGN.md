@@ -1,6 +1,6 @@
 # Design
 
-yt-dlp-dj prioritizes simplicity and personal convenience. It is a single-user local tool, not a production web service. Design decisions favor "works on my machine" reliability over scalability or multi-user concerns.
+dj-kompanion prioritizes simplicity and personal convenience. It is a single-user local tool, not a production web service. Design decisions favor "works on my machine" reliability over scalability or multi-user concerns.
 
 ## Current State
 
@@ -24,7 +24,7 @@ yt-dlp-dj prioritizes simplicity and personal convenience. It is a single-user l
 | Document | Purpose |
 |----------|---------|
 | `design-docs/core-beliefs.md` | Agent-first operating principles |
-| `design-docs/2026-02-26-yt-dlp-dj-design.md` | Monolithic reference design |
+| `design-docs/2026-02-26-dj-kompanion-design.md` | Monolithic reference design |
 | `design-docs/2026-02-26-01-*` through `04-*` | Per-phase focused design docs |
 
 ## See Also

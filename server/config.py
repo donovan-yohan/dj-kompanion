@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ValidationError
 
-CONFIG_DIR = Path("~/.config/yt-dlp-dj").expanduser()
+CONFIG_DIR = Path("~/.config/dj-kompanion").expanduser()
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 

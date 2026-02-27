@@ -3,12 +3,12 @@
 **Date:** 2026-02-26
 **Status:** Approved
 **Phase:** 4 (Frontend)
-**Parent Design:** `2026-02-26-yt-dlp-dj-design.md`
+**Parent Design:** `2026-02-26-dj-kompanion-design.md`
 **Depends On:** Phase 3 (Server) — needs working API endpoints
 
 ## Context
 
-yt-dlp-dj is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the Chrome extension — the user-facing UI that captures the current page URL, previews metadata, allows editing, and triggers downloads.
+dj-kompanion is a Chrome extension + Python local server that wraps yt-dlp for one-click music downloading with DJ-ready metadata. This design doc covers the Chrome extension — the user-facing UI that captures the current page URL, previews metadata, allows editing, and triggers downloads.
 
 ## Goal
 
@@ -24,7 +24,7 @@ A working Chrome extension (Manifest V3) where:
 ```json
 {
   "manifest_version": 3,
-  "name": "yt-dlp-dj",
+  "name": "dj-kompanion",
   "version": "0.1.0",
   "description": "One-click music download with DJ-ready metadata",
   "permissions": ["activeTab"],
@@ -56,7 +56,7 @@ Only `activeTab` permission needed — we just read the current tab URL when the
 
 ```
 ┌─────────────────────────────────┐
-│  yt-dlp-dj                      │
+│  dj-kompanion                      │
 │─────────────────────────────────│
 │                                 │
 │  ● Connected to local server    │
@@ -78,7 +78,7 @@ If server is not running:
 │  ✗ Server not running           │
 │                                 │
 │  Start it with:                 │
-│  $ yt-dlp-dj serve              │
+│  $ dj-kompanion serve              │
 ```
 
 ### State 2: Loading
@@ -94,7 +94,7 @@ Simple spinner while waiting for `/api/preview` response.
 
 ```
 ┌─────────────────────────────────┐
-│  yt-dlp-dj                      │
+│  dj-kompanion                      │
 │─────────────────────────────────│
 │                                 │
 │  Artist: [DJ Snake          ]   │
@@ -135,7 +135,7 @@ Download button disabled, spinner shown. In v2, could show progress via SSE.
 
 ```
 ┌─────────────────────────────────┐
-│  yt-dlp-dj                      │
+│  dj-kompanion                      │
 │─────────────────────────────────│
 │                                 │
 │  ✓ Downloaded!                  │
