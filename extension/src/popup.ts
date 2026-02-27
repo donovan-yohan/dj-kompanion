@@ -128,9 +128,13 @@ function renderQueueItem(item: QueueItem): string {
   const title = `${item.metadata.artist} - ${item.metadata.title}`;
 
   let detail = "";
-  if (item.status === "complete" && item.filepath) {
+  if ((item.status === "complete" || item.status === "analyzed") && item.filepath) {
     detail = `<div class="queue-item-path">→ ${escapeHtml(item.filepath)}</div>`;
-  } else if (item.status === "error" && item.error) {
+  }
+  if (item.status === "analyzed" && item.analysis) {
+    detail += `<div class="queue-item-analysis">BPM: ${item.analysis.bpm.toFixed(1)} | Key: ${escapeHtml(item.analysis.key_camelot)} | ${item.analysis.segments.length} sections</div>`;
+  }
+  if (item.status === "error" && item.error) {
     detail = `
       <div class="queue-item-error">
         <span>${escapeHtml(item.error)}</span>
@@ -138,7 +142,10 @@ function renderQueueItem(item: QueueItem): string {
       </div>`;
   }
 
-  const expandableDetail = item.status === "complete" ? renderExpandableDetail(item) : "";
+  const expandableDetail =
+    item.status === "complete" || item.status === "analyzed"
+      ? renderExpandableDetail(item)
+      : "";
 
   return `
     <div class="queue-item" data-id="${item.id}" data-status="${item.status}">
@@ -149,6 +156,17 @@ function renderQueueItem(item: QueueItem): string {
       ${detail}
       ${expandableDetail}
     </div>`;
+}
+
+function renderSegmentList(item: QueueItem): string {
+  if (!item.analysis || item.analysis.segments.length === 0) return "";
+  const rows = item.analysis.segments
+    .map(
+      (seg) =>
+        `<div class="segment-row"><span class="segment-label">${escapeHtml(seg.label)}</span><span class="segment-time">${seg.start.toFixed(1)}s – ${seg.end.toFixed(1)}s</span><span class="segment-bars">${seg.bars} bars</span></div>`
+    )
+    .join("");
+  return `<div class="queue-item-segments"><div class="segments-header">Sections</div>${rows}</div>`;
 }
 
 function renderExpandableDetail(item: QueueItem): string {
@@ -168,6 +186,7 @@ function renderExpandableDetail(item: QueueItem): string {
         <button class="btn btn-primary btn-save-tags" data-id="${item.id}">Save Tags</button>
         <button class="btn btn-secondary btn-cancel-edit" data-id="${item.id}">Cancel</button>
       </div>
+      ${renderSegmentList(item)}
     </div>`;
 }
 
@@ -178,6 +197,10 @@ function getStatusIcon(item: QueueItem): string {
     case "downloading":
       return '<span class="spinner-inline"></span>';
     case "complete":
+      return "✓";
+    case "analyzing":
+      return '<span class="spinner-inline"></span>';
+    case "analyzed":
       return "✓";
     case "error":
       return "✗";
@@ -233,7 +256,10 @@ function attachQueueListeners(listEl: HTMLElement, items: QueueItem[]): void {
   // Click to expand/collapse completed items
   listEl.querySelectorAll<HTMLElement>(".queue-item-header").forEach((header) => {
     const itemEl = header.closest<HTMLElement>(".queue-item");
-    if (itemEl && itemEl.dataset["status"] === "complete") {
+    if (
+      itemEl &&
+      (itemEl.dataset["status"] === "complete" || itemEl.dataset["status"] === "analyzed")
+    ) {
       header.addEventListener("click", () => {
         itemEl.classList.toggle("expanded");
       });
