@@ -47,6 +47,9 @@ header {
   background: var(--bg-alt);
   border-bottom: 1px solid var(--border);
   padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 header h1 {
@@ -59,53 +62,21 @@ section {
   padding: 14px;
 }
 
-/* Status indicator */
-.status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  margin-bottom: 10px;
-}
-
-.status::before {
-  content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
+/* Status dot */
+.status-dot {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  background: var(--border);
   flex-shrink: 0;
 }
 
-.status.connected::before {
+.status-dot.connected {
   background: var(--success);
 }
 
-.status.disconnected::before {
+.status-dot.disconnected {
   background: var(--error);
-}
-
-.status.connected {
-  color: var(--success);
-}
-
-.status.disconnected {
-  color: var(--error);
-}
-
-/* URL display */
-.url-display {
-  margin-bottom: 12px;
-  font-size: 12px;
-  color: var(--text-muted);
-  word-break: break-all;
-  line-height: 1.4;
-}
-
-.url-display .label {
-  font-weight: 600;
-  color: var(--text);
-  margin-right: 4px;
 }
 
 /* Buttons */
@@ -270,4 +241,114 @@ section {
   color: var(--text-muted);
   margin-bottom: 12px;
   word-break: break-word;
+}
+
+/* Button row (Download + Cancel side by side) */
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-row .btn {
+  flex: 1;
+}
+
+/* Queue list container */
+.queue-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.queue-list:empty {
+  display: none;
+}
+
+/* Queue item */
+.queue-item {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.queue-item:last-child {
+  border-bottom: none;
+}
+
+.queue-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.queue-item-status {
+  flex-shrink: 0;
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+}
+
+.queue-item-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-item-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  word-break: break-all;
+  margin-top: 2px;
+  padding-left: 26px;
+}
+
+.queue-item-error {
+  font-size: 11px;
+  color: var(--error);
+  margin-top: 2px;
+  padding-left: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.queue-item-error .btn {
+  width: auto;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+/* Expandable detail view for completed items */
+.queue-item-detail {
+  display: none;
+  padding: 8px 0 0 0;
+}
+
+.queue-item.expanded .queue-item-detail {
+  display: block;
+}
+
+/* Downloading spinner animation for queue items */
+.queue-item-status .spinner-inline {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--spinner-color);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+/* Section spacing */
+#section-fetch {
+  padding: 14px;
+}
+
+#section-queue {
+  padding: 0;
+  border-top: 1px solid var(--border);
 }
