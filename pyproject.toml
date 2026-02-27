@@ -10,6 +10,11 @@ dependencies = [
     "typer",
     "pyyaml",
     "pydantic",
+    "numpy",
+    "soundfile",
+    "essentia",
+    "madmom",
+    "allin1",
 ]
 
 [project.scripts]
@@ -22,12 +27,42 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["server"]
 
+[tool.uv]
+extra-build-dependencies = {madmom = ["Cython", "numpy"]}
+
+[tool.uv.sources]
+madmom = {git = "https://github.com/CPJKU/madmom.git"}
+
 [tool.mypy]
 strict = true
 packages = ["server"]
 
 [[tool.mypy.overrides]]
 module = "mutagen.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "allin1.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "essentia.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "demucs.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "madmom.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "natten.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "soundfile.*"
 follow_imports = "skip"
 
 [tool.ruff]
