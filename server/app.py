@@ -93,6 +93,8 @@ async def download(req: DownloadRequest) -> DownloadResponse:
                 },
             ) from filepath_result
         if isinstance(filepath_result, BaseException):
+            if not isinstance(filepath_result, Exception):
+                raise filepath_result
             raise HTTPException(
                 status_code=500,
                 detail={
@@ -104,7 +106,14 @@ async def download(req: DownloadRequest) -> DownloadResponse:
 
         filepath = filepath_result
 
-        if isinstance(claude_result, BaseException) or claude_result is None:
+        if isinstance(claude_result, BaseException):
+            if not isinstance(claude_result, Exception):
+                raise claude_result
+            final_metadata = merge_metadata(
+                req.metadata, basic_enrich(req.raw), req.user_edited_fields
+            )
+            enrichment_source = "basic"
+        elif claude_result is None:
             final_metadata = merge_metadata(
                 req.metadata, basic_enrich(req.raw), req.user_edited_fields
             )

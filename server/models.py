@@ -38,6 +38,7 @@ class PreviewResponse(BaseModel):
 
 
 _ALLOWED_FORMATS = {"best", "mp3", "flac", "m4a", "ogg", "opus", "wav", "aac"}
+_ENRICHED_FIELDS = frozenset(EnrichedMetadata.model_fields.keys())
 
 
 class DownloadRequest(BaseModel):
@@ -52,6 +53,15 @@ class DownloadRequest(BaseModel):
     def validate_format(cls, v: str) -> str:
         if v not in _ALLOWED_FORMATS:
             msg = f"format must be one of {sorted(_ALLOWED_FORMATS)}"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("user_edited_fields")
+    @classmethod
+    def validate_edited_fields(cls, v: list[str]) -> list[str]:
+        invalid = set(v) - _ENRICHED_FIELDS
+        if invalid:
+            msg = f"Unknown metadata fields: {sorted(invalid)}"
             raise ValueError(msg)
         return v
 

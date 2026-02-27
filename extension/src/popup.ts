@@ -167,10 +167,18 @@ async function handleDownload(): Promise<void> {
   const format = getSelectedFormat();
   const userEditedFields = computeUserEditedFields(metadata);
 
+  if (previewRaw === null) {
+    lastErrorMessage = "Preview data missing. Please fetch metadata first.";
+    const errEl = document.getElementById("error-message");
+    if (errEl) errEl.textContent = lastErrorMessage;
+    render("error");
+    return;
+  }
+
   const req: DownloadRequest = {
     url: currentUrl,
     metadata,
-    raw: previewRaw!,
+    raw: previewRaw,
     format,
     user_edited_fields: userEditedFields,
   };
