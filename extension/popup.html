@@ -9,25 +9,21 @@
   <body>
     <header>
       <h1>dj-kompanion</h1>
+      <span id="server-status" class="status-dot" title="Checking..."></span>
     </header>
 
-    <!-- Initial state -->
-    <section id="section-initial">
-      <p id="server-status" class="status">Checking server...</p>
-      <p class="url-display">
-        <span class="label">URL:</span>
-        <span id="current-url" class="url-text"></span>
-      </p>
-      <button id="btn-fetch" class="btn btn-primary">Fetch Metadata</button>
+    <!-- Fetch button -->
+    <section id="section-fetch">
+      <button id="btn-fetch" class="btn btn-primary" disabled>Fetch from Current URL</button>
     </section>
 
-    <!-- Loading state -->
+    <!-- Loading state (for metadata fetch) -->
     <section id="section-loading" hidden>
       <p class="loading-text">Fetching metadata...</p>
       <div class="spinner" aria-label="Loading"></div>
     </section>
 
-    <!-- Preview / Edit state -->
+    <!-- Preview / Edit state (inline form) -->
     <section id="section-preview" hidden>
       <form id="metadata-form" autocomplete="off">
         <div class="field-row">
@@ -85,29 +81,25 @@
 
         <p id="enrichment-source" class="enrichment-info"></p>
 
-        <button id="btn-download" type="button" class="btn btn-primary">Download</button>
+        <div class="btn-row">
+          <button id="btn-queue" type="button" class="btn btn-primary">Download</button>
+          <button id="btn-cancel-preview" type="button" class="btn btn-secondary">Cancel</button>
+        </div>
       </form>
     </section>
 
-    <!-- Downloading state -->
-    <section id="section-downloading" hidden>
-      <p class="loading-text">Downloading...</p>
-      <div class="spinner" aria-label="Downloading"></div>
-    </section>
-
-    <!-- Complete state -->
-    <section id="section-complete" hidden>
-      <p class="success-heading">&#10003; Downloaded!</p>
-      <p id="complete-title" class="complete-title"></p>
-      <p id="complete-path" class="complete-path"></p>
-      <button id="btn-another" class="btn btn-secondary">Download Another</button>
-    </section>
-
-    <!-- Error state -->
-    <section id="section-error" hidden>
+    <!-- Fetch error (shown inline, not a global state) -->
+    <section id="section-fetch-error" hidden>
       <p class="error-heading">&#10007; Error</p>
-      <p id="error-message" class="error-message"></p>
-      <button id="btn-retry" class="btn btn-secondary">Try Again</button>
+      <p id="fetch-error-message" class="error-message"></p>
+      <button id="btn-retry-fetch" class="btn btn-secondary">Try Again</button>
+    </section>
+
+    <!-- Queue list -->
+    <section id="section-queue">
+      <div id="queue-list" class="queue-list">
+        <!-- Queue items rendered dynamically by popup.ts -->
+      </div>
     </section>
 
     <script src="dist/popup.js"></script>
