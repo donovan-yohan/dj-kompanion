@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path as FilePath
 from typing import Any, Literal
 
 import yt_dlp  # type: ignore[import-untyped]
@@ -17,6 +18,8 @@ from server.models import (
     HealthResponse,
     PreviewRequest,
     PreviewResponse,
+    RetagRequest,
+    RetagResponse,
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
 
@@ -148,4 +151,29 @@ async def download(req: DownloadRequest) -> DownloadResponse:
         status="complete",
         filepath=str(final_path),
         enrichment_source=enrichment_source,
+        metadata=final_metadata,
     )
+
+
+@app.post("/api/retag", response_model=RetagResponse)
+async def retag(req: RetagRequest) -> RetagResponse:
+    filepath = FilePath(req.filepath)
+    if not filepath.exists():
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "file_not_found", "message": f"File not found: {req.filepath}"},
+        )
+
+    try:
+        final_path = tag_file(filepath, req.metadata)
+    except TaggingError as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "tagging_failed",
+                "message": e.message,
+                "filepath": str(e.filepath),
+            },
+        ) from e
+
+    return RetagResponse(status="ok", filepath=str(final_path))

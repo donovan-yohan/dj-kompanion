@@ -70,6 +70,17 @@ class DownloadResponse(BaseModel):
     status: str
     filepath: str
     enrichment_source: Literal["claude", "basic", "none"] = "none"
+    metadata: EnrichedMetadata | None = None
+
+
+class RetagRequest(BaseModel):
+    filepath: str
+    metadata: EnrichedMetadata
+
+
+class RetagResponse(BaseModel):
+    status: str
+    filepath: str
 
 
 class HealthResponse(BaseModel):

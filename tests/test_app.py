@@ -255,3 +255,61 @@ async def test_cors_chrome_extension(client: AsyncClient) -> None:
 async def test_preview_missing_url(client: AsyncClient) -> None:
     response = await client.post("/api/preview", json={})
     assert response.status_code == 422
+
+
+SAMPLE_ENRICHED_DICT: dict[str, object] = {
+    "artist": "DJ Snake",
+    "title": "Turn Down for What",
+    "genre": "EDM",
+    "year": 2014,
+}
+
+
+async def test_retag_success(client: AsyncClient) -> None:
+    mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
+    with (
+        patch("server.app.FilePath") as mock_filepath_cls,
+        patch("server.app.tag_file", return_value=mock_path),
+    ):
+        mock_filepath_cls.return_value.exists.return_value = True
+        response = await client.post(
+            "/api/retag",
+            json={"filepath": str(mock_path), "metadata": SAMPLE_ENRICHED_DICT},
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["filepath"] == str(mock_path)
+
+
+async def test_retag_file_not_found(client: AsyncClient) -> None:
+    with patch("server.app.FilePath") as mock_filepath_cls:
+        mock_filepath_cls.return_value.exists.return_value = False
+        response = await client.post(
+            "/api/retag",
+            json={"filepath": "/nonexistent/file.m4a", "metadata": SAMPLE_ENRICHED_DICT},
+        )
+    assert response.status_code == 404
+    data = response.json()
+    assert data["error"] == "file_not_found"
+
+
+async def test_retag_tagging_error(client: AsyncClient) -> None:
+    from server.tagger import TaggingError
+
+    mock_path = Path("/tmp/broken.xyz")
+    with (
+        patch("server.app.FilePath") as mock_filepath_cls,
+        patch(
+            "server.app.tag_file",
+            side_effect=TaggingError("Unsupported format: .xyz", mock_path),
+        ),
+    ):
+        mock_filepath_cls.return_value.exists.return_value = True
+        response = await client.post(
+            "/api/retag",
+            json={"filepath": str(mock_path), "metadata": SAMPLE_ENRICHED_DICT},
+        )
+    assert response.status_code == 500
+    data = response.json()
+    assert data["error"] == "tagging_failed"
