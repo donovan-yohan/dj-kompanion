@@ -8,8 +8,8 @@ import uvicorn
 
 from server.config import load_config, open_config_in_editor
 from server.downloader import DownloadError, download_audio, extract_metadata
-from server.enrichment import enrich_metadata
-from server.tagger import sanitize_filename, tag_file
+from server.enrichment import basic_enrich, enrich_metadata, is_claude_available
+from server.tagger import TaggingError, build_download_filename, tag_file
 
 app = typer.Typer(
     name="yt-dlp-dj",
@@ -25,7 +25,10 @@ async def _download_pipeline(url: str, preferred_format: str | None) -> None:
     raw = await extract_metadata(url)
 
     typer.echo("Enriching metadata...")
-    enriched = await enrich_metadata(raw, model=cfg.llm.model)
+    if cfg.llm.enabled and await is_claude_available():
+        enriched = await enrich_metadata(raw, model=cfg.llm.model)
+    else:
+        enriched = basic_enrich(raw)
 
     typer.echo(f"  Artist: {enriched.artist}")
     typer.echo(f"  Title:  {enriched.title}")
@@ -33,9 +36,7 @@ async def _download_pipeline(url: str, preferred_format: str | None) -> None:
         typer.echo(f"  Genre:  {enriched.genre}")
 
     preferred = preferred_format or cfg.preferred_format
-    artist_clean = sanitize_filename(enriched.artist)
-    title_clean = sanitize_filename(enriched.title)
-    filename = f"{artist_clean} - {title_clean}" if artist_clean and title_clean else "download"
+    filename = build_download_filename(enriched.artist, enriched.title)
 
     typer.echo(f"Downloading to {cfg.output_dir}...")
     filepath = await download_audio(url, cfg.output_dir, filename, preferred)
@@ -45,9 +46,7 @@ async def _download_pipeline(url: str, preferred_format: str | None) -> None:
 
 @app.command()
 def serve(
-    port: Annotated[
-        int | None, typer.Option("--port", "-p", help="Port to listen on.")
-    ] = None,
+    port: Annotated[int | None, typer.Option("--port", "-p", help="Port to listen on.")] = None,
 ) -> None:
     """Start the local FastAPI server."""
     cfg = load_config()
@@ -64,16 +63,17 @@ def config() -> None:
 @app.command()
 def download(
     url: Annotated[str, typer.Argument(help="URL to download.")],
-    format: Annotated[
-        str | None, typer.Option("--format", "-f", help="Audio format.")
-    ] = None,
+    format: Annotated[str | None, typer.Option("--format", "-f", help="Audio format.")] = None,
 ) -> None:
     """Download audio from a URL directly."""
     try:
         asyncio.run(_download_pipeline(url, format))
     except DownloadError as e:
-        typer.echo(f"Error: {e.message}", err=True)
+        typer.echo(f"Download failed: {e.message}", err=True)
+        raise typer.Exit(1) from None
+    except TaggingError as e:
+        typer.echo(f"Tagging failed for '{e.filepath}': {e.message}", err=True)
         raise typer.Exit(1) from None
     except Exception as e:
-        typer.echo(f"Unexpected error: {e}", err=True)
+        typer.echo(f"Unexpected error ({type(e).__name__}): {e}", err=True)
         raise typer.Exit(1) from None

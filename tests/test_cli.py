@@ -61,9 +61,7 @@ def test_serve_uses_app_string() -> None:
 def test_download_success() -> None:
     with (
         patch("server.cli.extract_metadata", new_callable=AsyncMock, return_value=SAMPLE_RAW),
-        patch(
-            "server.cli.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
-        ),
+        patch("server.cli.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED),
         patch("server.cli.download_audio", new_callable=AsyncMock, return_value=MOCK_PATH),
         patch("server.cli.tag_file", return_value=MOCK_PATH),
     ):
@@ -76,9 +74,7 @@ def test_download_success() -> None:
 def test_download_shows_metadata() -> None:
     with (
         patch("server.cli.extract_metadata", new_callable=AsyncMock, return_value=SAMPLE_RAW),
-        patch(
-            "server.cli.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
-        ),
+        patch("server.cli.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED),
         patch("server.cli.download_audio", new_callable=AsyncMock, return_value=MOCK_PATH),
         patch("server.cli.tag_file", return_value=MOCK_PATH),
     ):
@@ -104,10 +100,10 @@ def test_download_error_exits_nonzero() -> None:
 def test_download_with_format_option() -> None:
     with (
         patch("server.cli.extract_metadata", new_callable=AsyncMock, return_value=SAMPLE_RAW),
+        patch("server.cli.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED),
         patch(
-            "server.cli.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
-        ),
-        patch("server.cli.download_audio", new_callable=AsyncMock, return_value=MOCK_PATH) as mock_dl,
+            "server.cli.download_audio", new_callable=AsyncMock, return_value=MOCK_PATH
+        ) as mock_dl,
         patch("server.cli.tag_file", return_value=MOCK_PATH),
     ):
         result = runner.invoke(

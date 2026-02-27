@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, field_validator
 
 
 class RawMetadata(BaseModel):
@@ -25,10 +27,17 @@ class EnrichedMetadata(BaseModel):
     comment: str = ""
 
 
+class PreviewRequest(BaseModel):
+    url: str
+
+
 class PreviewResponse(BaseModel):
     raw: RawMetadata
     enriched: EnrichedMetadata
-    enrichment_source: str  # "claude" | "none"
+    enrichment_source: Literal["claude", "none"]
+
+
+_ALLOWED_FORMATS = {"best", "mp3", "flac", "m4a", "ogg", "opus", "wav", "aac"}
 
 
 class DownloadRequest(BaseModel):
@@ -36,7 +45,21 @@ class DownloadRequest(BaseModel):
     metadata: EnrichedMetadata
     format: str = "best"
 
+    @field_validator("format")
+    @classmethod
+    def validate_format(cls, v: str) -> str:
+        if v not in _ALLOWED_FORMATS:
+            msg = f"format must be one of {sorted(_ALLOWED_FORMATS)}"
+            raise ValueError(msg)
+        return v
+
 
 class DownloadResponse(BaseModel):
     status: str
     filepath: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    yt_dlp_version: str
+    claude_available: bool

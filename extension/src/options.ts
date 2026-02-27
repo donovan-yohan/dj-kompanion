@@ -1,11 +1,5 @@
-const DEFAULT_PORT = 9234;
-const DEFAULT_HOST = "localhost";
-
-function getEl<T extends HTMLElement>(id: string): T {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`Element #${id} not found`);
-  return el as T;
-}
+import { DEFAULT_HOST, DEFAULT_PORT } from "./constants.js";
+import { getEl } from "./dom.js";
 
 function showStatus(message: string, isError = false): void {
   const status = getEl<HTMLParagraphElement>("status");
@@ -23,6 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = getEl<HTMLFormElement>("options-form");
 
   chrome.storage.sync.get({ port: DEFAULT_PORT, host: DEFAULT_HOST }, (items) => {
+    if (chrome.runtime.lastError) {
+      showStatus(`Failed to load settings: ${chrome.runtime.lastError.message}`, true);
+      return;
+    }
     portInput.value = String(items["port"] as number);
     hostInput.value = items["host"] as string;
   });
@@ -42,6 +40,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     chrome.storage.sync.set({ port, host }, () => {
+      if (chrome.runtime.lastError) {
+        showStatus(`Failed to save: ${chrome.runtime.lastError.message}`, true);
+        return;
+      }
       showStatus("Settings saved");
     });
   });

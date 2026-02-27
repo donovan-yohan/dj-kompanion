@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import subprocess
 from typing import Any
 
@@ -56,18 +57,11 @@ Return ONLY valid JSON matching this schema:
 }}"""
 
 
-def _subprocess_run(cmd: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-
-
 def basic_enrich(raw: RawMetadata) -> EnrichedMetadata:
     """Fallback enrichment without LLM.
-    Attempts basic artist/title splitting from common YouTube title patterns."""
+
+    Attempts basic artist/title splitting from common YouTube title patterns.
+    """
     title = raw.title
     artist: str
 
@@ -81,7 +75,7 @@ def basic_enrich(raw: RawMetadata) -> EnrichedMetadata:
         artist = raw.uploader or "Unknown"
 
     for suffix in _SUFFIXES:
-        title = title.replace(suffix, "").strip()
+        title = re.sub(re.escape(suffix), "", title, flags=re.IGNORECASE).strip()
 
     return EnrichedMetadata(
         artist=artist.strip(),
@@ -94,7 +88,6 @@ def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMeta
     """Parse JSON response from claude CLI. Returns None if parsing fails."""
     text_to_parse = response_text
 
-    # Handle --output-format json envelope: {"type": "result", "result": "...", ...}
     try:
         envelope: Any = json.loads(response_text)
         if isinstance(envelope, dict) and "result" in envelope:
@@ -102,12 +95,12 @@ def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMeta
             if isinstance(result_val, str):
                 text_to_parse = result_val
     except json.JSONDecodeError:
-        pass  # Not a JSON envelope, try parsing directly
+        pass
 
     try:
         raw_parsed: Any = json.loads(text_to_parse)
     except json.JSONDecodeError:
-        logger.warning("claude returned invalid JSON")
+        logger.warning("claude returned invalid JSON (first 200 chars): %.200s", text_to_parse)
         return None
 
     if not isinstance(raw_parsed, dict):
@@ -133,10 +126,14 @@ def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMeta
         return None
 
 
+def _run_subprocess(cmd: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
 async def is_claude_available() -> bool:
     """Check if claude CLI is on PATH."""
     try:
-        result = await asyncio.to_thread(_subprocess_run, ["claude", "--version"], 5.0)
+        result = await asyncio.to_thread(_run_subprocess, ["claude", "--version"], 5.0)
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return False
@@ -144,9 +141,12 @@ async def is_claude_available() -> bool:
 
 async def enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata:
     """Use claude CLI to parse and enrich raw metadata.
+
     Falls back to basic parsing if claude is unavailable.
-    Never raises — always returns an EnrichedMetadata."""
+    Never raises -- always returns an EnrichedMetadata.
+    """
     if not await is_claude_available():
+        logger.warning("claude CLI not found on PATH; falling back to basic_enrich")
         return basic_enrich(raw)
 
     prompt = _PROMPT_TEMPLATE.format(
@@ -156,7 +156,7 @@ async def enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMet
     cmd = ["claude", "-p", "--model", model, "--output-format", "json", prompt]
 
     try:
-        result = await asyncio.to_thread(_subprocess_run, cmd, 30.0)
+        result = await asyncio.to_thread(_run_subprocess, cmd, 30.0)
     except subprocess.TimeoutExpired:
         logger.warning("claude timed out after 30s, falling back to basic_enrich")
         return basic_enrich(raw)

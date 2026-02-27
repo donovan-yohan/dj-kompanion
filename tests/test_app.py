@@ -58,9 +58,7 @@ async def test_health_claude_unavailable(client: AsyncClient) -> None:
 async def test_preview_success(client: AsyncClient) -> None:
     with (
         patch("server.app.extract_metadata", new_callable=AsyncMock, return_value=SAMPLE_RAW),
-        patch(
-            "server.app.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
-        ),
+        patch("server.app.enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED),
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
     ):
         response = await client.post(
@@ -80,9 +78,7 @@ async def test_preview_extraction_error(client: AsyncClient) -> None:
         new_callable=AsyncMock,
         side_effect=DownloadError("Not found", url="https://example.com/invalid"),
     ):
-        response = await client.post(
-            "/api/preview", json={"url": "https://example.com/invalid"}
-        )
+        response = await client.post("/api/preview", json={"url": "https://example.com/invalid"})
     assert response.status_code == 404
     data = response.json()
     assert data["error"] == "extraction_failed"
@@ -164,8 +160,7 @@ async def test_cors_chrome_extension(client: AsyncClient) -> None:
         )
     assert response.status_code == 200
     assert (
-        response.headers.get("access-control-allow-origin")
-        == "chrome-extension://abcdefghijklmnop"
+        response.headers.get("access-control-allow-origin") == "chrome-extension://abcdefghijklmnop"
     )
 
 

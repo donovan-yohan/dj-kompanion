@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 CONFIG_DIR = Path("~/.config/yt-dlp-dj").expanduser()
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
@@ -24,36 +25,53 @@ class AppConfig(BaseModel):
     llm: LLMConfig = LLMConfig()
 
 
-def _default_config_dict() -> dict[str, object]:
+def _serializable_defaults() -> dict[str, object]:
+    """Return default config as a YAML-friendly dict (Paths as strings)."""
     config = AppConfig()
-    return {
-        "output_dir": str(config.output_dir),
-        "preferred_format": config.preferred_format,
-        "filename_template": config.filename_template,
-        "server_port": config.server_port,
-        "llm": {
-            "enabled": config.llm.enabled,
-            "model": config.llm.model,
-        },
-    }
+    data = config.model_dump()
+    data["output_dir"] = str(config.output_dir)
+    return data
 
 
 def load_config() -> AppConfig:
     if not CONFIG_FILE.exists():
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         with CONFIG_FILE.open("w") as f:
-            yaml.dump(_default_config_dict(), f, default_flow_style=False)
+            yaml.dump(_serializable_defaults(), f, default_flow_style=False)
         return AppConfig()
 
-    with CONFIG_FILE.open() as f:
-        data: dict[str, object] = yaml.safe_load(f) or {}
+    try:
+        with CONFIG_FILE.open() as f:
+            data: dict[str, object] = yaml.safe_load(f) or {}
+    except yaml.YAMLError as e:
+        raise RuntimeError(
+            f"Config file at {CONFIG_FILE} contains invalid YAML: {e}. "
+            "Fix or delete the file to reset to defaults."
+        ) from e
 
-    return AppConfig.model_validate(data)
+    try:
+        return AppConfig.model_validate(data)
+    except ValidationError as e:
+        raise RuntimeError(
+            f"Config file at {CONFIG_FILE} has invalid values: {e}. "
+            "Fix or delete the file to reset to defaults."
+        ) from e
 
 
 def open_config_in_editor() -> None:
     if not CONFIG_FILE.exists():
-        load_config()  # creates the file with defaults
+        load_config()
 
     editor = os.environ.get("EDITOR", "nano")
-    subprocess.run([editor, str(CONFIG_FILE)], check=False)
+    try:
+        result = subprocess.run([editor, str(CONFIG_FILE)], check=False)
+        if result.returncode != 0:
+            print(
+                f"Warning: editor '{editor}' exited with code {result.returncode}.",
+                file=sys.stderr,
+            )
+    except FileNotFoundError:
+        print(
+            f"Error: editor '{editor}' not found. Set $EDITOR to a valid editor.",
+            file=sys.stderr,
+        )

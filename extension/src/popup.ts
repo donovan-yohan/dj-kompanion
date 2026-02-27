@@ -1,16 +1,11 @@
 import { fetchPreview, healthCheck, requestDownload } from "./api.js";
+import { getEl } from "./dom.js";
 import type { DownloadRequest, EnrichedMetadata } from "./types.js";
 
 type PopupState = "initial" | "loading" | "preview" | "downloading" | "complete" | "error";
 
 let currentUrl = "";
 let lastErrorMessage = "";
-
-function getEl<T extends HTMLElement>(id: string): T {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`Element #${id} not found`);
-  return el as T;
-}
 
 function getInput(id: string): HTMLInputElement {
   return getEl<HTMLInputElement>(id);
@@ -39,10 +34,14 @@ function readMetadataFromForm(): EnrichedMetadata {
     artist: getInput("field-artist").value,
     title: getInput("field-title").value,
     genre: getInput("field-genre").value || null,
-    year: parseInt(getInput("field-year").value, 10) || null,
+    year: getInput("field-year").value !== "" ? parseInt(getInput("field-year").value, 10) : null,
     label: getInput("field-label").value || null,
-    energy: parseInt(getInput("field-energy").value, 10) || null,
-    bpm: parseFloat(getInput("field-bpm").value) || null,
+    energy:
+      getInput("field-energy").value !== ""
+        ? parseInt(getInput("field-energy").value, 10)
+        : null,
+    bpm:
+      getInput("field-bpm").value !== "" ? parseFloat(getInput("field-bpm").value) : null,
     key: getInput("field-key").value || null,
     comment: getInput("field-comment").value,
   };
@@ -75,11 +74,12 @@ function populatePreviewForm(metadata: EnrichedMetadata, source: string, url: st
 }
 
 function setBadge(text: string, color: string): void {
-  chrome.runtime.sendMessage({ type: "badge_set", text, color });
+  void chrome.action.setBadgeText({ text });
+  void chrome.action.setBadgeBackgroundColor({ color });
 }
 
 function clearBadge(): void {
-  chrome.runtime.sendMessage({ type: "badge_clear" });
+  void chrome.action.setBadgeText({ text: "" });
 }
 
 async function init(): Promise<void> {
@@ -105,12 +105,20 @@ async function init(): Promise<void> {
   }
 
   const fetchBtn = getEl<HTMLButtonElement>("btn-fetch");
-  fetchBtn.disabled = !isConnected;
+  if (!currentUrl) {
+    fetchBtn.disabled = true;
+    const urlDisplay2 = document.getElementById("current-url");
+    if (urlDisplay2) urlDisplay2.textContent = "(no URL — open a web page first)";
+  } else {
+    fetchBtn.disabled = !isConnected;
+  }
 
   render("initial");
 }
 
 async function handleFetchMetadata(): Promise<void> {
+  const btn = getEl<HTMLButtonElement>("btn-fetch");
+  btn.disabled = true;
   render("loading");
 
   try {

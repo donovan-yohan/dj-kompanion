@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from mutagen.flac import FLAC
@@ -36,7 +37,19 @@ def sanitize_filename(name: str) -> str:
     return name[:_MAX_FILENAME_LEN]
 
 
-def _build_filename(artist: str, title: str, ext: str) -> str | None:
+def build_download_filename(artist: str, title: str) -> str:
+    """Return sanitized '{Artist} - {Title}' for use as a download filename (no extension).
+
+    Falls back to 'download' if either part is empty after sanitization.
+    """
+    artist_clean = sanitize_filename(artist)
+    title_clean = sanitize_filename(title)
+    if artist_clean and title_clean:
+        return f"{artist_clean} - {title_clean}"
+    return "download"
+
+
+def _build_tagged_filename(artist: str, title: str, ext: str) -> str | None:
     """Return sanitized '{Artist} - {Title}.{ext}', or None if either part is empty."""
     artist_clean = sanitize_filename(artist)
     title_clean = sanitize_filename(title)
@@ -46,7 +59,14 @@ def _build_filename(artist: str, title: str, ext: str) -> str | None:
     return f"{base}.{ext}" if ext else base
 
 
-# ─── Writers ──────────────────────────────────────────────────────────────────
+def _safe_int(value: str | None) -> int | None:
+    """Parse a string to int, returning None if not a valid integer."""
+    if value and value.isdigit():
+        return int(value)
+    return None
+
+
+# --- Writers ---
 
 
 def _tag_mp3(filepath: Path, metadata: EnrichedMetadata) -> None:
@@ -75,24 +95,32 @@ def _tag_mp3(filepath: Path, metadata: EnrichedMetadata) -> None:
     audio.save()
 
 
-def _tag_flac(filepath: Path, metadata: EnrichedMetadata) -> None:
-    audio: Any = FLAC(filepath)
-    audio["ARTIST"] = metadata.artist
-    audio["TITLE"] = metadata.title
+def _tag_vorbis(filepath: Path, metadata: EnrichedMetadata, *, is_flac: bool) -> None:
+    """Write Vorbis comment tags to FLAC or OGG files.
+
+    FLAC stores values as plain strings; OGG Vorbis stores them as single-item lists.
+    """
+    audio: Any = FLAC(filepath) if is_flac else OggVorbis(filepath)
+
+    def val(s: str) -> str | list[str]:
+        return s if is_flac else [s]
+
+    audio["ARTIST"] = val(metadata.artist)
+    audio["TITLE"] = val(metadata.title)
     if metadata.genre is not None:
-        audio["GENRE"] = metadata.genre
+        audio["GENRE"] = val(metadata.genre)
     if metadata.year is not None:
-        audio["DATE"] = str(metadata.year)
+        audio["DATE"] = val(str(metadata.year))
     if metadata.label is not None:
-        audio["LABEL"] = metadata.label
+        audio["LABEL"] = val(metadata.label)
     if metadata.energy is not None:
-        audio["ENERGY"] = str(metadata.energy)
+        audio["ENERGY"] = val(str(metadata.energy))
     if metadata.bpm is not None:
-        audio["BPM"] = str(metadata.bpm)
+        audio["BPM"] = val(str(metadata.bpm))
     if metadata.key is not None:
-        audio["INITIALKEY"] = metadata.key
+        audio["INITIALKEY"] = val(metadata.key)
     if metadata.comment:
-        audio["COMMENT"] = metadata.comment
+        audio["COMMENT"] = val(metadata.comment)
     audio.save()
 
 
@@ -117,28 +145,7 @@ def _tag_m4a(filepath: Path, metadata: EnrichedMetadata) -> None:
     audio.save()
 
 
-def _tag_ogg(filepath: Path, metadata: EnrichedMetadata) -> None:
-    audio: Any = OggVorbis(filepath)
-    audio["ARTIST"] = [metadata.artist]
-    audio["TITLE"] = [metadata.title]
-    if metadata.genre is not None:
-        audio["GENRE"] = [metadata.genre]
-    if metadata.year is not None:
-        audio["DATE"] = [str(metadata.year)]
-    if metadata.label is not None:
-        audio["LABEL"] = [metadata.label]
-    if metadata.energy is not None:
-        audio["ENERGY"] = [str(metadata.energy)]
-    if metadata.bpm is not None:
-        audio["BPM"] = [str(metadata.bpm)]
-    if metadata.key is not None:
-        audio["INITIALKEY"] = [metadata.key]
-    if metadata.comment:
-        audio["COMMENT"] = [metadata.comment]
-    audio.save()
-
-
-# ─── Readers ──────────────────────────────────────────────────────────────────
+# --- Readers ---
 
 
 def _first_vorbis_tag(audio: Any, key: str) -> str | None:
@@ -175,12 +182,8 @@ def _read_mp3(filepath: Path) -> EnrichedMetadata:
 
     artist = get_text("TPE1") or ""
     title_val = get_text("TIT2") or ""
-    genre = get_text("TCON")
     year_str = get_text("TDRC")
-    label = get_text("TPUB")
-    energy_str = get_txxx("ENERGY")
     bpm_str = get_text("TBPM")
-    key = get_text("TKEY")
 
     comment = ""
     if tags is not None:
@@ -194,38 +197,30 @@ def _read_mp3(filepath: Path) -> EnrichedMetadata:
     return EnrichedMetadata(
         artist=artist,
         title=title_val,
-        genre=genre,
-        year=int(year_str) if year_str and year_str.isdigit() else None,
-        label=label,
-        energy=int(energy_str) if energy_str and energy_str.isdigit() else None,
-        bpm=int(bpm_str) if bpm_str and bpm_str.isdigit() else None,
-        key=key,
+        genre=get_text("TCON"),
+        year=_safe_int(year_str),
+        label=get_text("TPUB"),
+        energy=_safe_int(get_txxx("ENERGY")),
+        bpm=_safe_int(bpm_str),
+        key=get_text("TKEY"),
         comment=comment,
     )
 
 
-def _read_flac(filepath: Path) -> EnrichedMetadata:
-    audio: Any = FLAC(filepath)
-    artist = _first_vorbis_tag(audio, "ARTIST") or ""
-    title_val = _first_vorbis_tag(audio, "TITLE") or ""
-    genre = _first_vorbis_tag(audio, "GENRE")
-    year_str = _first_vorbis_tag(audio, "DATE")
-    label = _first_vorbis_tag(audio, "LABEL")
-    energy_str = _first_vorbis_tag(audio, "ENERGY")
-    bpm_str = _first_vorbis_tag(audio, "BPM")
-    key = _first_vorbis_tag(audio, "INITIALKEY")
-    comment = _first_vorbis_tag(audio, "COMMENT") or ""
+def _read_vorbis(filepath: Path, *, is_flac: bool) -> EnrichedMetadata:
+    """Read Vorbis comment tags from FLAC or OGG files."""
+    audio: Any = FLAC(filepath) if is_flac else OggVorbis(filepath)
 
     return EnrichedMetadata(
-        artist=artist,
-        title=title_val,
-        genre=genre,
-        year=int(year_str) if year_str and year_str.isdigit() else None,
-        label=label,
-        energy=int(energy_str) if energy_str and energy_str.isdigit() else None,
-        bpm=int(bpm_str) if bpm_str and bpm_str.isdigit() else None,
-        key=key,
-        comment=comment,
+        artist=_first_vorbis_tag(audio, "ARTIST") or "",
+        title=_first_vorbis_tag(audio, "TITLE") or "",
+        genre=_first_vorbis_tag(audio, "GENRE"),
+        year=_safe_int(_first_vorbis_tag(audio, "DATE")),
+        label=_first_vorbis_tag(audio, "LABEL"),
+        energy=_safe_int(_first_vorbis_tag(audio, "ENERGY")),
+        bpm=_safe_int(_first_vorbis_tag(audio, "BPM")),
+        key=_first_vorbis_tag(audio, "INITIALKEY"),
+        comment=_first_vorbis_tag(audio, "COMMENT") or "",
     )
 
 
@@ -247,56 +242,45 @@ def _read_m4a(filepath: Path) -> EnrichedMetadata:
             return None
         return bytes(val[0]).decode("utf-8", errors="replace")
 
-    artist = get_str("\xa9ART") or ""
-    title_val = get_str("\xa9nam") or ""
-    genre = get_str("\xa9gen")
-    year_str = get_str("\xa9day")
-    label = get_freeform("----:com.apple.iTunes:LABEL")
-    energy_str = get_freeform("----:com.apple.iTunes:ENERGY")
     bpm_raw: Any = audio.get("tmpo")
     bpm = int(bpm_raw[0]) if bpm_raw else None
-    key = get_freeform("----:com.apple.iTunes:initialkey")
-    comment = get_str("\xa9cmt") or ""
 
     return EnrichedMetadata(
-        artist=artist,
-        title=title_val,
-        genre=genre,
-        year=int(year_str) if year_str and year_str.isdigit() else None,
-        label=label,
-        energy=int(energy_str) if energy_str and energy_str.isdigit() else None,
+        artist=get_str("\xa9ART") or "",
+        title=get_str("\xa9nam") or "",
+        genre=get_str("\xa9gen"),
+        year=_safe_int(get_str("\xa9day")),
+        label=get_freeform("----:com.apple.iTunes:LABEL"),
+        energy=_safe_int(get_freeform("----:com.apple.iTunes:ENERGY")),
         bpm=bpm,
-        key=key,
-        comment=comment,
+        key=get_freeform("----:com.apple.iTunes:initialkey"),
+        comment=get_str("\xa9cmt") or "",
     )
 
 
-def _read_ogg(filepath: Path) -> EnrichedMetadata:
-    audio: Any = OggVorbis(filepath)
-    artist = _first_vorbis_tag(audio, "ARTIST") or ""
-    title_val = _first_vorbis_tag(audio, "TITLE") or ""
-    genre = _first_vorbis_tag(audio, "GENRE")
-    year_str = _first_vorbis_tag(audio, "DATE")
-    label = _first_vorbis_tag(audio, "LABEL")
-    energy_str = _first_vorbis_tag(audio, "ENERGY")
-    bpm_str = _first_vorbis_tag(audio, "BPM")
-    key = _first_vorbis_tag(audio, "INITIALKEY")
-    comment = _first_vorbis_tag(audio, "COMMENT") or ""
+# --- Format dispatch tables ---
 
-    return EnrichedMetadata(
-        artist=artist,
-        title=title_val,
-        genre=genre,
-        year=int(year_str) if year_str and year_str.isdigit() else None,
-        label=label,
-        energy=int(energy_str) if energy_str and energy_str.isdigit() else None,
-        bpm=int(bpm_str) if bpm_str and bpm_str.isdigit() else None,
-        key=key,
-        comment=comment,
-    )
+_TagWriter = Callable[["Path", EnrichedMetadata], None]
+_TagReader = Callable[["Path"], EnrichedMetadata]
+
+_WRITERS: dict[str, _TagWriter] = {
+    "mp3": _tag_mp3,
+    "flac": lambda fp, meta: _tag_vorbis(fp, meta, is_flac=True),
+    "m4a": _tag_m4a,
+    "mp4": _tag_m4a,
+    "ogg": lambda fp, meta: _tag_vorbis(fp, meta, is_flac=False),
+}
+
+_READERS: dict[str, _TagReader] = {
+    "mp3": _read_mp3,
+    "flac": lambda fp: _read_vorbis(fp, is_flac=True),
+    "m4a": _read_m4a,
+    "mp4": _read_m4a,
+    "ogg": lambda fp: _read_vorbis(fp, is_flac=False),
+}
 
 
-# ─── Public API ───────────────────────────────────────────────────────────────
+# --- Public API ---
 
 
 def tag_file(filepath: Path, metadata: EnrichedMetadata) -> Path:
@@ -306,28 +290,26 @@ def tag_file(filepath: Path, metadata: EnrichedMetadata) -> Path:
     Raises TaggingError if the format is unsupported or the file is corrupt.
     """
     ext = filepath.suffix.lower().lstrip(".")
+    writer = _WRITERS.get(ext)
+
+    if writer is None:
+        raise TaggingError(f"Unsupported format: .{ext}", filepath)
 
     try:
-        if ext == "mp3":
-            _tag_mp3(filepath, metadata)
-        elif ext == "flac":
-            _tag_flac(filepath, metadata)
-        elif ext in ("m4a", "mp4"):
-            _tag_m4a(filepath, metadata)
-        elif ext == "ogg":
-            _tag_ogg(filepath, metadata)
-        else:
-            raise TaggingError(f"Unsupported format: .{ext}", filepath)
+        writer(filepath, metadata)
     except TaggingError:
         raise
     except Exception as exc:
         raise TaggingError(str(exc), filepath) from exc
 
-    new_name = _build_filename(metadata.artist, metadata.title, ext)
+    new_name = _build_tagged_filename(metadata.artist, metadata.title, ext)
     if new_name:
         new_path = filepath.parent / new_name
         if new_path != filepath:
-            filepath.rename(new_path)
+            try:
+                filepath.rename(new_path)
+            except OSError as exc:
+                raise TaggingError(f"Failed to rename file: {exc}", filepath) from exc
             return new_path
 
     return filepath
@@ -340,18 +322,13 @@ def read_tags(filepath: Path) -> EnrichedMetadata:
     Raises TaggingError if the format is unsupported or the file is corrupt.
     """
     ext = filepath.suffix.lower().lstrip(".")
+    reader = _READERS.get(ext)
+
+    if reader is None:
+        raise TaggingError(f"Unsupported format: .{ext}", filepath)
 
     try:
-        if ext == "mp3":
-            return _read_mp3(filepath)
-        elif ext == "flac":
-            return _read_flac(filepath)
-        elif ext in ("m4a", "mp4"):
-            return _read_m4a(filepath)
-        elif ext == "ogg":
-            return _read_ogg(filepath)
-        else:
-            raise TaggingError(f"Unsupported format: .{ext}", filepath)
+        return reader(filepath)
     except TaggingError:
         raise
     except Exception as exc:

@@ -93,9 +93,9 @@ class TestSanitizeFilename:
         assert sanitize_filename("Back in Black: Live") == "Back in Black Live"
 
     def test_spaces_after_illegal_char_removal_collapsed(self) -> None:
-        # "A / B" → "A  B" → "A B"
+        # "A / B" → slash removed → "A  B" → collapsed → "A B"
         result = sanitize_filename("A / B")
-        assert result == "A  B" or result == "A B"  # collapsed or direct
+        assert result == "A B"
 
     def test_question_mark_stripped(self) -> None:
         assert "?" not in sanitize_filename("What is this?")

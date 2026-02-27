@@ -1,29 +1,23 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 import yt_dlp  # type: ignore[import-untyped]
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
 from server.config import load_config
 from server.downloader import DownloadError, download_audio, extract_metadata
 from server.enrichment import enrich_metadata, is_claude_available
-from server.models import DownloadRequest, DownloadResponse, PreviewResponse
-from server.tagger import TaggingError, sanitize_filename, tag_file
-
-
-class HealthResponse(BaseModel):
-    status: str
-    yt_dlp_version: str
-    claude_available: bool
-
-
-class _PreviewRequest(BaseModel):
-    url: str
-
+from server.models import (
+    DownloadRequest,
+    DownloadResponse,
+    HealthResponse,
+    PreviewRequest,
+    PreviewResponse,
+)
+from server.tagger import TaggingError, build_download_filename, tag_file
 
 app = FastAPI(title="yt-dlp-dj", version="0.1.0")
 
@@ -58,7 +52,7 @@ async def health() -> HealthResponse:
 
 
 @app.post("/api/preview", response_model=PreviewResponse)
-async def preview(req: _PreviewRequest) -> PreviewResponse:
+async def preview(req: PreviewRequest) -> PreviewResponse:
     try:
         raw = await extract_metadata(req.url)
     except DownloadError as e:
@@ -68,9 +62,18 @@ async def preview(req: _PreviewRequest) -> PreviewResponse:
         ) from e
 
     cfg = load_config()
-    claude_ok = cfg.llm.enabled and await is_claude_available()
-    enriched = await enrich_metadata(raw, model=cfg.llm.model)
-    source = "claude" if claude_ok else "none"
+    use_llm = cfg.llm.enabled and await is_claude_available()
+
+    source: Literal["claude", "none"]
+    if use_llm:
+        enriched = await enrich_metadata(raw, model=cfg.llm.model)
+        source = "claude"
+    else:
+        from server.enrichment import basic_enrich
+
+        enriched = basic_enrich(raw)
+        source = "none"
+
     return PreviewResponse(raw=raw, enriched=enriched, enrichment_source=source)
 
 
@@ -78,9 +81,7 @@ async def preview(req: _PreviewRequest) -> PreviewResponse:
 async def download(req: DownloadRequest) -> DownloadResponse:
     cfg = load_config()
 
-    artist_clean = sanitize_filename(req.metadata.artist)
-    title_clean = sanitize_filename(req.metadata.title)
-    filename = f"{artist_clean} - {title_clean}" if artist_clean and title_clean else "download"
+    filename = build_download_filename(req.metadata.artist, req.metadata.title)
 
     try:
         filepath = await download_audio(
