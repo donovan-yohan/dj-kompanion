@@ -38,4 +38,29 @@ export interface DownloadResponse {
   status: string;
   filepath: string;
   enrichment_source: "claude" | "basic" | "none";
+  metadata?: EnrichedMetadata;
+}
+
+export interface QueueItem {
+  id: string;
+  url: string;
+  metadata: EnrichedMetadata;
+  raw: RawMetadata;
+  format: string;
+  userEditedFields: string[];
+  status: "pending" | "downloading" | "complete" | "error";
+  enrichmentSource?: "claude" | "basic" | "none";
+  filepath?: string;
+  error?: string;
+  addedAt: number;
+}
+
+export interface RetagRequest {
+  filepath: string;
+  metadata: EnrichedMetadata;
+}
+
+export interface RetagResponse {
+  status: string;
+  filepath: string;
 }
