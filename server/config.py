@@ -17,12 +17,19 @@ class LLMConfig(BaseModel):
     model: str = "haiku"
 
 
+class AnalysisConfig(BaseModel):
+    enabled: bool = True
+    vdj_database: Path = Path("~/Documents/VirtualDJ/database.xml").expanduser()
+    max_cues: int = 8
+
+
 class AppConfig(BaseModel):
     output_dir: Path = Path("~/Music/DJ Library").expanduser()
     preferred_format: str = "best"
     filename_template: str = "{artist} - {title}"
     server_port: int = 9234
     llm: LLMConfig = LLMConfig()
+    analysis: AnalysisConfig = AnalysisConfig()
 
 
 def _serializable_defaults() -> dict[str, object]:
@@ -30,6 +37,11 @@ def _serializable_defaults() -> dict[str, object]:
     config = AppConfig()
     data = config.model_dump()
     data["output_dir"] = str(config.output_dir)
+    data["analysis"] = {
+        "enabled": config.analysis.enabled,
+        "vdj_database": str(config.analysis.vdj_database),
+        "max_cues": config.analysis.max_cues,
+    }
     return data
 
 
