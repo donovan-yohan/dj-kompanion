@@ -49,7 +49,7 @@ export async function fetchPreview(url: string): Promise<PreviewResponse> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
     },
-    30000,
+    10000,
   );
   if (!response.ok) {
     const text = await response.text();
