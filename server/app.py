@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path as FilePath
+from pathlib import Path
 from typing import Any, Literal
 
 import yt_dlp  # type: ignore[import-untyped]
@@ -115,11 +115,9 @@ async def download(req: DownloadRequest) -> DownloadResponse:
         if isinstance(claude_result, BaseException):
             if not isinstance(claude_result, Exception):
                 raise claude_result
-            final_metadata = merge_metadata(
-                req.metadata, basic_enrich(req.raw), req.user_edited_fields
-            )
-            enrichment_source = "basic"
-        elif claude_result is None:
+            claude_result = None
+
+        if claude_result is None:
             final_metadata = merge_metadata(
                 req.metadata, basic_enrich(req.raw), req.user_edited_fields
             )
@@ -162,7 +160,7 @@ async def download(req: DownloadRequest) -> DownloadResponse:
 
 @app.post("/api/retag", response_model=RetagResponse)
 async def retag(req: RetagRequest) -> RetagResponse:
-    filepath = FilePath(req.filepath)
+    filepath = Path(req.filepath)
     if not filepath.exists():
         raise HTTPException(
             status_code=404,

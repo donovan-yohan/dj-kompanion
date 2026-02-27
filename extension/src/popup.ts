@@ -1,27 +1,15 @@
 import { fetchPreview, healthCheck, requestRetag } from "./api.js";
 import { getEl } from "./dom.js";
+import { readQueue, writeQueue } from "./queue-storage.js";
 import type { EnrichedMetadata, QueueItem, RawMetadata } from "./types.js";
 
 let currentUrl = "";
 let initialMetadata: EnrichedMetadata | null = null;
 let previewRaw: RawMetadata | null = null;
 
-// --- Queue storage helpers ---
-
-async function readQueue(): Promise<QueueItem[]> {
-  const data = await chrome.storage.local.get("queue");
-  return (data["queue"] as QueueItem[] | undefined) ?? [];
-}
-
-async function writeQueue(queue: QueueItem[]): Promise<void> {
-  await chrome.storage.local.set({ queue });
-}
-
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
-// --- Form helpers (same as before) ---
 
 function getInput(id: string): HTMLInputElement {
   return getEl<HTMLInputElement>(id);
@@ -87,8 +75,6 @@ function populatePreviewForm(metadata: EnrichedMetadata, source: string, url: st
   }
 }
 
-// --- View switching ---
-
 function showView(view: "fetch" | "loading" | "preview" | "fetch-error"): void {
   const sections: Record<string, string[]> = {
     "section-fetch": ["fetch"],
@@ -101,8 +87,6 @@ function showView(view: "fetch" | "loading" | "preview" | "fetch-error"): void {
     if (el) el.hidden = !views.includes(view);
   }
 }
-
-// --- Queue list rendering ---
 
 function renderQueueList(queue: QueueItem[]): void {
   const listEl = document.getElementById("queue-list");
@@ -119,7 +103,7 @@ function renderQueueList(queue: QueueItem[]): void {
   }
 
   listEl.innerHTML = recent.map((item) => renderQueueItem(item)).join("");
-  attachQueueListeners(listEl, recent);
+  attachQueueListeners(listEl);
 }
 
 function renderQueueItem(item: QueueItem): string {
@@ -198,12 +182,7 @@ function escapeAttr(str: string): string {
     .replace(/>/g, "&gt;");
 }
 
-// --- Queue item event listeners ---
-
-function attachQueueListeners(listEl: HTMLElement, items: QueueItem[]): void {
-  void items; // referenced for context; listeners use DOM data attributes
-
-  // Retry buttons
+function attachQueueListeners(listEl: HTMLElement): void {
   listEl.querySelectorAll<HTMLButtonElement>(".btn-retry").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -212,7 +191,6 @@ function attachQueueListeners(listEl: HTMLElement, items: QueueItem[]): void {
     });
   });
 
-  // Save tags buttons
   listEl.querySelectorAll<HTMLButtonElement>(".btn-save-tags").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -221,7 +199,6 @@ function attachQueueListeners(listEl: HTMLElement, items: QueueItem[]): void {
     });
   });
 
-  // Cancel edit buttons
   listEl.querySelectorAll<HTMLButtonElement>(".btn-cancel-edit").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -230,7 +207,6 @@ function attachQueueListeners(listEl: HTMLElement, items: QueueItem[]): void {
     });
   });
 
-  // Click to expand/collapse completed items
   listEl.querySelectorAll<HTMLElement>(".queue-item-header").forEach((header) => {
     const itemEl = header.closest<HTMLElement>(".queue-item");
     if (itemEl && itemEl.dataset["status"] === "complete") {
@@ -240,8 +216,6 @@ function attachQueueListeners(listEl: HTMLElement, items: QueueItem[]): void {
     }
   });
 }
-
-// --- Action handlers ---
 
 async function handleRetry(id: string): Promise<void> {
   const queue = await readQueue();
@@ -299,8 +273,6 @@ function readEditFields(itemEl: HTMLElement): EnrichedMetadata {
   };
 }
 
-// --- Main flow handlers ---
-
 async function handleFetchMetadata(): Promise<void> {
   showView("loading");
 
@@ -349,8 +321,6 @@ async function handleQueueDownload(): Promise<void> {
   void chrome.runtime.sendMessage({ type: "queue_process" });
 }
 
-// --- Init ---
-
 async function init(): Promise<void> {
   initialMetadata = null;
   previewRaw = null;
@@ -380,8 +350,6 @@ async function init(): Promise<void> {
     await writeQueue(sorted.slice(0, 10));
   }
 }
-
-// --- Event listeners ---
 
 document.addEventListener("DOMContentLoaded", () => {
   void init();

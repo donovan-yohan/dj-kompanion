@@ -268,7 +268,7 @@ SAMPLE_ENRICHED_DICT: dict[str, object] = {
 async def test_retag_success(client: AsyncClient) -> None:
     mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
     with (
-        patch("server.app.FilePath") as mock_filepath_cls,
+        patch("server.app.Path") as mock_filepath_cls,
         patch("server.app.tag_file", return_value=mock_path),
     ):
         mock_filepath_cls.return_value.exists.return_value = True
@@ -283,7 +283,7 @@ async def test_retag_success(client: AsyncClient) -> None:
 
 
 async def test_retag_file_not_found(client: AsyncClient) -> None:
-    with patch("server.app.FilePath") as mock_filepath_cls:
+    with patch("server.app.Path") as mock_filepath_cls:
         mock_filepath_cls.return_value.exists.return_value = False
         response = await client.post(
             "/api/retag",
@@ -299,7 +299,7 @@ async def test_retag_tagging_error(client: AsyncClient) -> None:
 
     mock_path = Path("/tmp/broken.xyz")
     with (
-        patch("server.app.FilePath") as mock_filepath_cls,
+        patch("server.app.Path") as mock_filepath_cls,
         patch(
             "server.app.tag_file",
             side_effect=TaggingError("Unsupported format: .xyz", mock_path),
