@@ -203,3 +203,33 @@ async def enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMet
         return basic_enrich(raw)
 
     return enriched
+
+
+async def try_enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata | None:
+    """Like enrich_metadata, but returns None instead of falling back.
+
+    Used by the download endpoint to distinguish Claude success from failure.
+    """
+    if not await is_claude_available():
+        return None
+
+    prompt = _PROMPT_TEMPLATE.format(
+        raw_metadata_json=raw.model_dump_json(indent=2),
+    )
+
+    cmd = ["claude", "-p", "--model", model, "--output-format", "json", prompt]
+
+    try:
+        result = await asyncio.to_thread(_run_subprocess, cmd, 30.0)
+    except subprocess.TimeoutExpired:
+        logger.warning("claude timed out after 30s")
+        return None
+    except (FileNotFoundError, OSError) as e:
+        logger.warning("claude CLI error: %s", e)
+        return None
+
+    if result.returncode != 0:
+        logger.warning("claude returned non-zero exit code %d", result.returncode)
+        return None
+
+    return _parse_claude_response(result.stdout, raw)

@@ -338,3 +338,54 @@ def test_merge_preserves_comment() -> None:
     claude = EnrichedMetadata(artist="A", title="T", comment="https://other.com")
     result = merge_metadata(user, claude, user_edited_fields=[])
     assert result.comment == "https://example.com"  # user's comment always preserved
+
+
+# --- try_enrich_metadata ---
+
+
+from server.enrichment import try_enrich_metadata
+
+
+def test_try_enrich_returns_none_when_unavailable() -> None:
+    raw = make_raw()
+    with patch("server.enrichment.subprocess.run", side_effect=FileNotFoundError()):
+        result = asyncio.run(try_enrich_metadata(raw))
+    assert result is None
+
+
+def test_try_enrich_returns_none_on_timeout() -> None:
+    raw = make_raw()
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if "--version" in cmd:
+            return make_process("", returncode=0)
+        raise subprocess.TimeoutExpired("claude", 30)
+
+    with patch("server.enrichment.subprocess.run", side_effect=fake_run):
+        result = asyncio.run(try_enrich_metadata(raw))
+    assert result is None
+
+
+def test_try_enrich_returns_metadata_on_success() -> None:
+    raw = make_raw()
+    response = claude_json(artist="Bicep", title="GLUE", genre="Electronic")
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(response)):
+        result = asyncio.run(try_enrich_metadata(raw))
+
+    assert result is not None
+    assert result.artist == "Bicep"
+    assert result.genre == "Electronic"
+
+
+def test_try_enrich_returns_none_on_invalid_json() -> None:
+    raw = make_raw()
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if "--version" in cmd:
+            return make_process("", returncode=0)
+        return make_process("not json", returncode=0)
+
+    with patch("server.enrichment.subprocess.run", side_effect=fake_run):
+        result = asyncio.run(try_enrich_metadata(raw))
+    assert result is None
