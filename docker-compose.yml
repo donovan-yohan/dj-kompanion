@@ -1,0 +1,8 @@
+services:
+  analyzer:
+    build: ./analyzer
+    ports:
+      - "9235:9235"
+    volumes:
+      - ~/Music/DJ Library:/audio:ro
+    restart: unless-stopped
