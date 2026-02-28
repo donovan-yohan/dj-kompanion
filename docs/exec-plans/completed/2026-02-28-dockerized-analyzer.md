@@ -20,6 +20,7 @@
 | 2026-02-28 | Design | Volume mount over file upload | Audio files already on disk; no upload overhead |
 | 2026-02-28 | Design | Main server owns VDJ write | Container stays read-only; clean separation |
 | 2026-02-28 | Design | Configurable analyzer URL | Allows pointing to remote analyzer or different port |
+| 2026-02-28 | Retrospective | Plan completed — 8/8 tasks, 0 drift, 3 surprises | Clean execution; parallel workers effective for independent tasks |
 
 ## Progress
 
@@ -928,13 +929,16 @@ Move the Docker tech debt item to a new completed plan entry. Update Current Sta
 
 ## Outcomes & Retrospective
 
-_Filled by /harness:complete when work is done._
-
 **What worked:**
--
+- Parallel dispatch of independent tasks (1, 2, 3) cut wall-clock time significantly
+- Clean separation: container owns ML pipeline, main server owns HTTP client + VDJ write
+- 63 ML packages removed from main server — much lighter dependency footprint
+- Zero plan drift — all 8 tasks implemented as designed
 
 **What didn't:**
--
+- Parallel workers can commit each other's files (worker 1 committed worker 2's untracked files) — minor but could cause confusion
 
 **Learnings to codify:**
--
+- When dispatching parallel workers that create files in the same directory, consider using worktree isolation or explicit `git add` of only their own files
+- The brainstorming phase correctly identified the split architecture (analysis-only container vs whole server) — user preference for Claude CLI drove the right design
+- Platform compatibility (NATTEN macOS ARM64) should be validated during brainstorming, not discovered during implementation

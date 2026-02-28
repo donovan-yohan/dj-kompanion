@@ -48,6 +48,13 @@ async def analyze_audio(
             analyzer_url,
         )
         return None
+    except httpx.TimeoutException:
+        logger.error(
+            "Analyzer request timed out after %.0fs — analysis may still be running "
+            "or model download may be in progress",
+            _ANALYZE_TIMEOUT,
+        )
+        return None
     except Exception:
         logger.error("Failed to call analyzer service", exc_info=True)
         return None

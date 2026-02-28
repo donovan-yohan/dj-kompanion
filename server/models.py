@@ -125,3 +125,4 @@ class AnalyzeRequest(BaseModel):
 class AnalyzeResponse(BaseModel):
     status: str
     analysis: AnalysisResult
+    message: str | None = None

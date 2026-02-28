@@ -2,6 +2,23 @@
 
 A personal convenience tool wrapping [yt-dlp](https://github.com/yt-dlp/yt-dlp) with a Chrome extension and local server for one-click audio/video downloading with DJ-ready metadata (Virtual DJ format). Optional LLM-assisted metadata enrichment via the [Claude CLI](https://docs.anthropic.com/en/docs/claude-code).
 
+## Quick Start
+
+```bash
+# 1. Install dependencies
+uv sync
+cd extension && npm install && npm run build && cd ..
+
+# 2. Start the analyzer container (ML audio analysis)
+docker compose up -d
+
+# 3. Start the server
+uv run uvicorn server.app:app --reload --port 9234
+
+# 4. Load the extension in Chrome
+#    chrome://extensions → Developer mode → Load unpacked → select extension/
+```
+
 ## Architecture
 
 - **Python server** (FastAPI) — handles downloading, tagging, and LLM enrichment

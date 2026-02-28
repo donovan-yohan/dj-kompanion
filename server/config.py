@@ -42,6 +42,7 @@ def _serializable_defaults() -> dict[str, object]:
         "enabled": config.analysis.enabled,
         "vdj_database": str(config.analysis.vdj_database),
         "max_cues": config.analysis.max_cues,
+        "analyzer_url": config.analysis.analyzer_url,
     }
     return data
 

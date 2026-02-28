@@ -15,7 +15,7 @@ _None_
 
 | Plan | Created | Completed |
 |------|---------|-----------|
-| [Dockerized Analyzer](exec-plans/active/2026-02-28-dockerized-analyzer.md) | 2026-02-28 | 2026-02-28 |
+| [Dockerized Analyzer](exec-plans/completed/2026-02-28-dockerized-analyzer.md) | 2026-02-28 | 2026-02-28 |
 | [Audio Post-Processing](exec-plans/completed/2026-02-27-audio-post-processing.md) | 2026-02-27 | 2026-02-27 |
 | [Download Queue](exec-plans/completed/2026-02-26-download-queue.md) | 2026-02-26 | 2026-02-27 |
 | [Bugfix: JSON Fences & Missing Extension](exec-plans/completed/2026-02-26-bugfix-json-fences-and-missing-extension.md) | 2026-02-26 | 2026-02-27 |

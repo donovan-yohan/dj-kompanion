@@ -23,7 +23,10 @@ async def health() -> dict[str, str]:
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
-    filepath = Path(req.filepath)
+    filepath = Path(req.filepath).resolve()
+    audio_root = Path("/audio").resolve()
+    if not filepath.is_relative_to(audio_root):
+        return AnalyzeResponse(status="error", message="filepath must be under /audio")
     if not filepath.exists():
         return AnalyzeResponse(status="error", message=f"File not found: {req.filepath}")
 

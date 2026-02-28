@@ -6,6 +6,7 @@ A personal convenience tool wrapping yt-dlp with a Chrome extension and local se
 
 | Action | Command |
 |--------|---------|
+| Start analyzer | `docker compose up -d` |
 | Server dev | `uv run uvicorn server.app:app --reload --port 9234` |
 | Type check (Python) | `uv run mypy server/` |
 | Lint + format (Python) | `uv run ruff check . && uv run ruff format .` |
@@ -27,6 +28,7 @@ A personal convenience tool wrapping yt-dlp with a Chrome extension and local se
 
 ## Key Patterns
 
+- Analyzer runs in Docker container (allin1/NATTEN need Linux) — main server calls it over HTTP
 - Python server is the brain — all yt-dlp, tagging, and LLM logic lives there
 - Chrome extension is a thin UI — TypeScript, no heavy framework
 - LLM enrichment via `claude -p --model haiku` — no separate API key needed
