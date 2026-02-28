@@ -19,11 +19,14 @@ Input: a URL from the browser. Output: a downloaded media file with DJ-ready met
 | `server/downloader.py` | yt-dlp wrapper for metadata extraction and audio download |
 | `server/tagger.py` | File tagging via mutagen, filename sanitization |
 | `server/config.py` | Configuration loading (AppConfig, LLMConfig, AnalysisConfig) |
-| `server/analyzer.py` | 5-stage audio analysis pipeline orchestrator (allin1 → key → reclassify → bars → snap) |
-| `server/key_detect.py` | Musical key detection via essentia + Camelot notation conversion |
-| `server/beat_utils.py` | Beat-snapping and bar-counting utilities using downbeat positions |
-| `server/edm_reclassify.py` | EDM label reclassifier: maps allin1 labels to Drop/Buildup/Breakdown using stem energy |
+| `server/analyzer.py` | HTTP client proxying analysis requests to the analyzer container |
 | `server/vdj.py` | Virtual DJ database.xml writer with priority-based cue points |
+| `analyzer/app.py` | Analyzer container: FastAPI with POST /analyze endpoint |
+| `analyzer/pipeline.py` | Analyzer container: 5-stage analysis pipeline orchestrator |
+| `analyzer/key_detect.py` | Analyzer container: essentia key detection + Camelot notation |
+| `analyzer/beat_utils.py` | Analyzer container: beat-snapping and bar-counting |
+| `analyzer/edm_reclassify.py` | Analyzer container: EDM label reclassifier using stem energy |
+| `analyzer/models.py` | Analyzer container: Pydantic models (AnalysisResult, SegmentInfo, request/response) |
 | `extension/src/popup.ts` | Chrome extension popup: queue list renderer, inline preview/edit, retag, analysis display |
 | `extension/src/background.ts` | Service worker: queue download processing loop, post-download analysis trigger, badge, stale recovery |
 | `extension/src/api.ts` | HTTP client for server communication (health, preview, download, retag, analyze) |
@@ -34,7 +37,7 @@ Input: a URL from the browser. Output: a downloaded media file with DJ-ready met
 1. **Preview**: Extension sends URL -> server extracts metadata via yt-dlp -> basic_enrich parses artist/title -> returns raw + enriched to extension
 2. **Queue**: User confirms metadata in popup -> QueueItem written to chrome.storage.local -> service worker picks up pending items sequentially
 3. **Download**: Service worker sends URL + metadata + raw + user_edited_fields -> server runs yt-dlp download + Claude enrichment in parallel -> merge_metadata combines results respecting user edits -> tag_file writes metadata -> response includes final metadata + enrichment source
-4. **Analysis** (post-download): Server fires background task -> analyzer.py runs 5-stage pipeline (allin1 structure, essentia key, EDM reclassify, bar count, beat-snap) -> writes results to VDJ database.xml as named hot cues. Extension updates item status to "analyzing" then "analyzed" with BPM/key/section display.
+4. **Analysis** (post-download): Extension calls POST /api/analyze → main server translates filepath to container mount path → calls analyzer container (Docker, port 9235) over HTTP → container runs 5-stage ML pipeline (allin1 structure, essentia key, EDM reclassify, bar count, beat-snap) → returns AnalysisResult JSON → main server writes results to VDJ database.xml as named hot cues. Extension updates item status.
 5. **On-demand analysis**: Extension or user calls POST /api/analyze with filepath -> same pipeline as above -> returns AnalysisResult
 6. **Retag**: User edits tags on completed item -> extension sends filepath + metadata to /api/retag -> server re-writes tags via tag_file (may rename file)
 
@@ -57,5 +60,5 @@ Server logs to `~/.config/dj-kompanion/logs/server.log` via `server/logging_conf
 | Error boundaries | Each endpoint catches domain exceptions (DownloadError, TaggingError) and returns structured JSON errors |
 | Queue persistence | chrome.storage.local is single source of truth; popup is stateless renderer; service worker owns download lifecycle |
 | Stale recovery | Service worker resets "downloading" to "pending" and "analyzing" to "complete" on startup |
-| Analysis fallback | allin1 import failure -> analyze returns None; key detection failure -> empty key; analysis failure -> item stays "complete" |
+| Analysis fallback | Analyzer container unreachable → analyze returns None; individual pipeline stages fail gracefully with partial results |
 | VDJ cue priority | Drop > Buildup > Breakdown > Intro > Outro > Verse > Bridge > Inst/Solo; max 8 cue slots |

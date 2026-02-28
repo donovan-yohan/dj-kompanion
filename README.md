@@ -15,6 +15,7 @@ A personal convenience tool wrapping [yt-dlp](https://github.com/yt-dlp/yt-dlp) 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) (installed automatically as a Python dependency)
 - [ffmpeg](https://ffmpeg.org/) (required by yt-dlp for audio conversion)
 - [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) (optional, for LLM metadata enrichment)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (required for audio analysis)
 
 ## Setup
 
@@ -24,9 +25,14 @@ A personal convenience tool wrapping [yt-dlp](https://github.com/yt-dlp/yt-dlp) 
 # Install Python dependencies
 uv sync
 
+# Build and start the analyzer container (required for audio analysis)
+docker compose up -d
+
 # Run the server on port 9234
 uv run uvicorn server.app:app --reload --port 9234
 ```
+
+> **Note:** The analyzer container runs ML-based audio analysis (song structure, BPM, key detection) in a Linux environment. This is required because some ML libraries (NATTEN) don't have macOS ARM64 support. The main server handles downloading, tagging, and LLM enrichment natively.
 
 ### Chrome Extension
 
@@ -62,11 +68,12 @@ The config file controls:
 
 ## Usage
 
-1. Start the server: `uv run uvicorn server.app:app --reload --port 9234`
-2. Open a page with audio/video content (YouTube, SoundCloud, Bandcamp, etc.)
-3. Click the dj-kompanion extension icon
-4. Review and edit the metadata preview
-5. Click download
+1. Start the analyzer: `docker compose up -d`
+2. Start the server: `uv run uvicorn server.app:app --reload --port 9234`
+3. Open a page with audio/video content (YouTube, SoundCloud, Bandcamp, etc.)
+4. Click the dj-kompanion extension icon
+5. Review and edit the metadata preview
+6. Click download
 
 ### CLI
 
@@ -85,6 +92,9 @@ uv run dj-kompanion download "https://www.youtube.com/watch?v=..." --format mp3
 | Action | Command |
 |--------|---------|
 | Server (dev mode) | `uv run uvicorn server.app:app --reload --port 9234` |
+| Start analyzer | `docker compose up -d` |
+| Rebuild analyzer | `docker compose build --no-cache` |
+| Analyzer logs | `docker compose logs -f analyzer` |
 | Run tests | `uv run pytest` |
 | Type check (Python) | `uv run mypy server/` |
 | Lint (Python) | `uv run ruff check .` |
