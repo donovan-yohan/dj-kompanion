@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import musicbrainzngs  # type: ignore[import-untyped]
+import pylast
 
 _useragent_set = False
 
@@ -127,3 +128,39 @@ def _parse_recording(rec: dict[object, object]) -> MetadataCandidate:
         musicbrainz_id=mbid or None,
         cover_art_url=cover_art_url,
     )
+
+
+def search_lastfm(
+    artist: str,
+    title: str,
+    api_key: str = "",
+) -> list[MetadataCandidate]:
+    """Look up a track on Last.fm by artist and title, returning genre tags.
+
+    Never raises — returns empty list on any error or if api_key is empty.
+    """
+    if not api_key:
+        return []
+
+    try:
+        network = pylast.LastFMNetwork(api_key=api_key)
+        track = network.get_track(artist, title)
+
+        top_tags = track.get_top_tags()
+        genre_tags: list[str] = [tag_item.item.name for tag_item in top_tags]
+
+        album_obj = track.get_album()
+        album: str | None = album_obj.get_name() if album_obj is not None else None
+
+        return [
+            MetadataCandidate(
+                source="lastfm",
+                artist=artist,
+                title=title,
+                album=album,
+                genre_tags=genre_tags,
+                match_score=100.0,
+            )
+        ]
+    except Exception:
+        return []

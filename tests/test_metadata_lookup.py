@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import musicbrainzngs
 import pytest
 
-from server.metadata_lookup import MetadataCandidate, search_musicbrainz
+from server.metadata_lookup import MetadataCandidate, search_lastfm, search_musicbrainz
 
 
 def _make_recording(
@@ -214,3 +214,69 @@ def test_search_musicbrainz_passes_limit_to_api() -> None:
         search_musicbrainz("Artist", "Title", limit=3)
 
     assert captured[0]["limit"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Last.fm tests
+# ---------------------------------------------------------------------------
+
+
+def _make_tag_item(name: str, weight: int = 100) -> MagicMock:
+    tag_item = MagicMock()
+    tag_item.item.name = name
+    tag_item.weight = weight
+    return tag_item
+
+
+def test_search_lastfm_returns_candidates() -> None:
+    mock_network = MagicMock()
+    mock_track = MagicMock()
+    mock_album = MagicMock()
+
+    mock_album.get_name.return_value = "Quest for Fire"
+    mock_track.get_top_tags.return_value = [
+        _make_tag_item("dubstep", 100),
+        _make_tag_item("electronic", 80),
+    ]
+    mock_track.get_album.return_value = mock_album
+    mock_network.get_track.return_value = mock_track
+
+    with patch("pylast.LastFMNetwork", return_value=mock_network):
+        candidates = search_lastfm("Skrillex", "Rumble", api_key="fake-key")
+
+    assert len(candidates) == 1
+    c = candidates[0]
+    assert isinstance(c, MetadataCandidate)
+    assert c.source == "lastfm"
+    assert c.artist == "Skrillex"
+    assert c.title == "Rumble"
+    assert c.album == "Quest for Fire"
+    assert c.genre_tags == ["dubstep", "electronic"]
+    assert c.match_score == 100.0
+
+
+def test_search_lastfm_skipped_without_api_key() -> None:
+    result = search_lastfm("Skrillex", "Rumble", api_key="")
+    assert result == []
+
+
+def test_search_lastfm_handles_api_error() -> None:
+    with patch("pylast.LastFMNetwork", side_effect=Exception("API error")):
+        result = search_lastfm("Skrillex", "Rumble", api_key="fake-key")
+
+    assert result == []
+
+
+def test_search_lastfm_handles_no_album() -> None:
+    mock_network = MagicMock()
+    mock_track = MagicMock()
+
+    mock_track.get_top_tags.return_value = [_make_tag_item("electronic", 100)]
+    mock_track.get_album.return_value = None
+    mock_network.get_track.return_value = mock_track
+
+    with patch("pylast.LastFMNetwork", return_value=mock_network):
+        candidates = search_lastfm("Skrillex", "Rumble", api_key="fake-key")
+
+    assert len(candidates) == 1
+    assert candidates[0].album is None
