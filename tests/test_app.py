@@ -168,6 +168,7 @@ async def test_download_with_claude_enrichment(client: AsyncClient) -> None:
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path),
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
+        patch("server.app.search_metadata", new_callable=AsyncMock, return_value=[]),
         patch(
             "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
         ),
@@ -186,12 +187,43 @@ async def test_download_with_claude_enrichment(client: AsyncClient) -> None:
     assert data["enrichment_source"] == "claude"
 
 
+async def test_download_with_api_and_claude_enrichment(client: AsyncClient) -> None:
+    from server.metadata_lookup import MetadataCandidate
+
+    mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
+    mock_candidates = [
+        MetadataCandidate(source="musicbrainz", artist="DJ Snake", title="Turn Down for What")
+    ]
+    with (
+        patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
+        patch("server.app.tag_file", return_value=mock_path),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
+        patch("server.app.search_metadata", new_callable=AsyncMock, return_value=mock_candidates),
+        patch(
+            "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
+        ),
+    ):
+        response = await client.post(
+            "/api/download",
+            json={
+                "url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
+                "metadata": {"artist": "DJ Snake", "title": "Turn Down for What"},
+                "raw": SAMPLE_RAW_DICT,
+                "format": "best",
+            },
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["enrichment_source"] == "api+claude"
+
+
 async def test_download_claude_fails_gracefully(client: AsyncClient) -> None:
     mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
     with (
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path),
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
+        patch("server.app.search_metadata", new_callable=AsyncMock, return_value=[]),
         patch("server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=None),
     ):
         response = await client.post(
@@ -217,6 +249,7 @@ async def test_download_user_edited_fields_preserved(client: AsyncClient) -> Non
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path) as mock_tag,
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
+        patch("server.app.search_metadata", new_callable=AsyncMock, return_value=[]),
         patch(
             "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=claude_enriched
         ),

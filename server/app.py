@@ -14,6 +14,7 @@ from server.analyzer import analyze_audio
 from server.config import load_config
 from server.downloader import DownloadError, download_audio, extract_metadata
 from server.enrichment import basic_enrich, is_claude_available, merge_metadata, try_enrich_metadata
+from server.metadata_lookup import MetadataCandidate, search_metadata
 from server.logging_config import setup_logging
 from server.models import (
     AnalyzeRequest,
@@ -85,15 +86,32 @@ async def download(req: DownloadRequest) -> DownloadResponse:
     filename = build_download_filename(req.metadata.artist, req.metadata.title)
     use_llm = cfg.llm.enabled and await is_claude_available()
 
-    enrichment_source: Literal["claude", "basic", "none"]
+    enrichment_source: Literal["api+claude", "claude", "basic", "none"]
 
     if use_llm:
+        basic = basic_enrich(req.raw)
+
+        if cfg.metadata_lookup.enabled:
+            api_task = search_metadata(
+                basic.artist,
+                basic.title,
+                lastfm_api_key=cfg.metadata_lookup.lastfm_api_key,
+                search_limit=cfg.metadata_lookup.search_limit,
+                user_agent=cfg.metadata_lookup.musicbrainz_user_agent,
+            )
+        else:
+
+            async def _empty_search() -> list[MetadataCandidate]:
+                return []
+
+            api_task = _empty_search()
+
         results = await asyncio.gather(
             download_audio(req.url, cfg.output_dir, filename, req.format, cookies=req.cookies),
-            try_enrich_metadata(req.raw, model=cfg.llm.model),
+            api_task,
             return_exceptions=True,
         )
-        filepath_result, claude_result = results
+        filepath_result, candidates_result = results
 
         if isinstance(filepath_result, DownloadError):
             raise HTTPException(
@@ -118,19 +136,26 @@ async def download(req: DownloadRequest) -> DownloadResponse:
 
         filepath = filepath_result
 
-        if isinstance(claude_result, BaseException):
-            if not isinstance(claude_result, Exception):
-                raise claude_result
-            claude_result = None
+        if isinstance(candidates_result, BaseException):
+            candidates = []
+        else:
+            candidates = candidates_result
 
-        if claude_result is None:
+        claude_result = await try_enrich_metadata(
+            req.raw, model=cfg.llm.model, candidates=candidates
+        )
+
+        if claude_result is not None and candidates:
+            enrichment_source = "api+claude"
+            final_metadata = merge_metadata(req.metadata, claude_result, req.user_edited_fields)
+        elif claude_result is not None:
+            enrichment_source = "claude"
+            final_metadata = merge_metadata(req.metadata, claude_result, req.user_edited_fields)
+        else:
+            enrichment_source = "basic"
             final_metadata = merge_metadata(
                 req.metadata, basic_enrich(req.raw), req.user_edited_fields
             )
-            enrichment_source = "basic"
-        else:
-            final_metadata = merge_metadata(req.metadata, claude_result, req.user_edited_fields)
-            enrichment_source = "claude"
     else:
         try:
             filepath = await download_audio(
