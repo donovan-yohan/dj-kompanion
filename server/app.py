@@ -202,7 +202,13 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
 
     cfg = load_config()
     vdj_path = cfg.analysis.vdj_database if cfg.analysis.enabled else None
-    result = await analyze_audio(filepath, vdj_db_path=vdj_path, max_cues=cfg.analysis.max_cues)
+    result = await analyze_audio(
+        filepath,
+        vdj_db_path=vdj_path,
+        max_cues=cfg.analysis.max_cues,
+        analyzer_url=cfg.analysis.analyzer_url,
+        output_dir=cfg.output_dir,
+    )
 
     if result is None:
         raise HTTPException(

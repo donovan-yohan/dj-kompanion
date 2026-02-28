@@ -21,6 +21,7 @@ class AnalysisConfig(BaseModel):
     enabled: bool = True
     vdj_database: Path = Path("~/Documents/VirtualDJ/database.xml").expanduser()
     max_cues: int = 8
+    analyzer_url: str = "http://localhost:9235"
 
 
 class AppConfig(BaseModel):
