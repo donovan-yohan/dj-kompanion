@@ -10,6 +10,7 @@ dependencies = [
     "typer",
     "pyyaml",
     "pydantic",
+    "httpx",
     "numpy",
     "soundfile",
     "essentia",

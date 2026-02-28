@@ -1,131 +1,125 @@
-"""Tests for server/analyzer.py — analysis pipeline orchestration."""
+"""Tests for server/analyzer.py — HTTP client for analyzer container."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
+import httpx
 import pytest
 
-from server.analyzer import analyze_audio
-from server.models import AnalysisResult
+from server.analyzer import _to_container_path, analyze_audio
 
 
-@dataclass
-class MockAllin1Segment:
-    label: str
-    start: float
-    end: float
-
-
-@dataclass
-class MockAllin1Result:
-    bpm: float
-    beats: list[float]
-    downbeats: list[float]
-    beat_positions: list[int]
-    segments: list[MockAllin1Segment]
-
-
-def _mock_allin1_result() -> MockAllin1Result:
-    """Simulate allin1.analyze() output for a 128 BPM track."""
-    return MockAllin1Result(
-        bpm=128.0,
-        beats=[0.0 + i * 0.46875 for i in range(64)],
-        downbeats=[0.0 + i * 1.875 for i in range(16)],
-        beat_positions=[((i % 4) + 1) for i in range(64)],
-        segments=[
-            MockAllin1Segment(label="start", start=0.0, end=0.0),
-            MockAllin1Segment(label="intro", start=0.0, end=7.5),
-            MockAllin1Segment(label="chorus", start=7.5, end=15.0),
-            MockAllin1Segment(label="break", start=15.0, end=18.75),
-            MockAllin1Segment(label="chorus", start=18.75, end=26.25),
-            MockAllin1Segment(label="outro", start=26.25, end=30.0),
-            MockAllin1Segment(label="end", start=30.0, end=30.0),
+SAMPLE_ANALYSIS_JSON = {
+    "status": "ok",
+    "analysis": {
+        "bpm": 128.0,
+        "key": "Am",
+        "key_camelot": "8A",
+        "beats": [0.234, 0.703],
+        "downbeats": [0.234],
+        "segments": [
+            {
+                "label": "Intro",
+                "original_label": "intro",
+                "start": 0.234,
+                "end": 60.5,
+                "bars": 32,
+            }
         ],
-    )
+    },
+}
 
 
-@pytest.fixture
-def mock_allin1() -> Any:
-    with patch("server.analyzer.allin1") as mock:
-        mock.analyze.return_value = _mock_allin1_result()
-        yield mock
+def test_to_container_path_with_output_dir() -> None:
+    filepath = Path("/Users/me/Music/DJ Library/Artist - Title.m4a")
+    output_dir = Path("/Users/me/Music/DJ Library")
+    assert _to_container_path(filepath, output_dir) == "/audio/Artist - Title.m4a"
 
 
-@pytest.fixture
-def mock_key_detect() -> Any:
-    with patch("server.analyzer.detect_key", new_callable=AsyncMock) as mock:
-        mock.return_value = ("Am", "8A", "minor", 0.87)
-        yield mock
+def test_to_container_path_subdirectory() -> None:
+    filepath = Path("/Users/me/Music/DJ Library/EDM/Artist - Title.m4a")
+    output_dir = Path("/Users/me/Music/DJ Library")
+    assert _to_container_path(filepath, output_dir) == "/audio/EDM/Artist - Title.m4a"
 
 
-@pytest.fixture
-def mock_stem_energies() -> Any:
-    with patch("server.analyzer._compute_stem_energies") as mock:
-        # Return high energy for chorus segments, low for others
-        mock.return_value = {
-            (7.5, 15.0): {"drums": 0.8, "bass": 0.7},
-            (18.75, 26.25): {"drums": 0.8, "bass": 0.7},
-        }
-        yield mock
+def test_to_container_path_fallback_no_output_dir() -> None:
+    filepath = Path("/some/other/path/track.m4a")
+    assert _to_container_path(filepath, None) == "/audio/track.m4a"
 
 
-async def test_analyze_returns_result(
-    tmp_path: Path, mock_allin1: Any, mock_key_detect: Any, mock_stem_energies: Any
-) -> None:
-    filepath = tmp_path / "track.m4a"
-    filepath.touch()
-    result = await analyze_audio(filepath)
-    assert isinstance(result, AnalysisResult)
+def test_to_container_path_fallback_not_relative() -> None:
+    filepath = Path("/other/path/track.m4a")
+    output_dir = Path("/Users/me/Music/DJ Library")
+    assert _to_container_path(filepath, output_dir) == "/audio/track.m4a"
+
+
+async def test_analyze_success() -> None:
+    mock_response = httpx.Response(200, json=SAMPLE_ANALYSIS_JSON)
+    with patch("server.analyzer.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await analyze_audio(
+            Path("/Users/me/Music/DJ Library/track.m4a"),
+            output_dir=Path("/Users/me/Music/DJ Library"),
+        )
+
+    assert result is not None
     assert result.bpm == 128.0
     assert result.key == "Am"
-    assert result.key_camelot == "8A"
+    assert len(result.segments) == 1
 
 
-async def test_segments_reclassified_to_edm(
-    tmp_path: Path, mock_allin1: Any, mock_key_detect: Any, mock_stem_energies: Any
-) -> None:
-    filepath = tmp_path / "track.m4a"
-    filepath.touch()
-    result = await analyze_audio(filepath)
-    labels = [s.label for s in result.segments]
-    assert "Intro" in labels[0]
-    # Chorus with high energy should become Drop
-    assert any("Drop" in label for label in labels)
+async def test_analyze_container_unreachable() -> None:
+    with patch("server.analyzer.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post.side_effect = httpx.ConnectError("Connection refused")
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
 
+        result = await analyze_audio(Path("/path/to/track.m4a"))
 
-async def test_segments_have_bar_counts(
-    tmp_path: Path, mock_allin1: Any, mock_key_detect: Any, mock_stem_energies: Any
-) -> None:
-    filepath = tmp_path / "track.m4a"
-    filepath.touch()
-    result = await analyze_audio(filepath)
-    for seg in result.segments:
-        assert seg.bars >= 1
-
-
-async def test_allin1_failure_returns_none(tmp_path: Path, mock_key_detect: Any) -> None:
-    filepath = tmp_path / "track.m4a"
-    filepath.touch()
-    with patch("server.analyzer.allin1") as mock:
-        mock.analyze.side_effect = RuntimeError("NATTEN crash")
-        result = await analyze_audio(filepath)
     assert result is None
 
 
-async def test_key_detect_failure_uses_unknown(
-    tmp_path: Path, mock_allin1: Any, mock_stem_energies: Any
-) -> None:
-    filepath = tmp_path / "track.m4a"
-    filepath.touch()
-    with patch("server.analyzer.detect_key", new_callable=AsyncMock) as mock:
-        mock.side_effect = RuntimeError("essentia error")
-        result = await analyze_audio(filepath)
+async def test_analyze_container_error_response() -> None:
+    error_json = {"status": "error", "message": "Analysis failed"}
+    mock_response = httpx.Response(200, json=error_json)
+    with patch("server.analyzer.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await analyze_audio(Path("/path/to/track.m4a"))
+
+    assert result is None
+
+
+async def test_analyze_writes_vdj_on_success(tmp_path: Path) -> None:
+    mock_response = httpx.Response(200, json=SAMPLE_ANALYSIS_JSON)
+    with (
+        patch("server.analyzer.httpx.AsyncClient") as mock_client_cls,
+        patch("server.vdj.write_to_vdj_database") as mock_vdj,
+    ):
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await analyze_audio(
+            Path("/Users/me/Music/DJ Library/track.m4a"),
+            vdj_db_path=tmp_path / "database.xml",
+            output_dir=Path("/Users/me/Music/DJ Library"),
+        )
+
     assert result is not None
-    assert result.key == ""
-    assert result.key_camelot == ""
+    mock_vdj.assert_called_once()
