@@ -19,6 +19,7 @@ function readMetadataFromForm(): EnrichedMetadata {
   return {
     artist: getInput("field-artist").value,
     title: getInput("field-title").value,
+    album: null,
     genre: getInput("field-genre").value || null,
     year: getInput("field-year").value !== "" ? parseInt(getInput("field-year").value, 10) : null,
     label: getInput("field-label").value || null,
@@ -26,6 +27,7 @@ function readMetadataFromForm(): EnrichedMetadata {
       getInput("field-energy").value !== "" ? parseInt(getInput("field-energy").value, 10) : null,
     bpm: getInput("field-bpm").value !== "" ? parseFloat(getInput("field-bpm").value) : null,
     key: getInput("field-key").value || null,
+    cover_art_url: null,
     comment: getInput("field-comment").value,
   };
 }
@@ -289,12 +291,14 @@ function readEditFields(itemEl: HTMLElement): EnrichedMetadata {
   return {
     artist: get("artist"),
     title: get("title"),
+    album: null,
     genre: get("genre") || null,
     year: get("year") !== "" ? parseInt(get("year"), 10) : null,
     label: get("label") || null,
     energy: get("energy") !== "" ? parseInt(get("energy"), 10) : null,
     bpm: get("bpm") !== "" ? parseFloat(get("bpm")) : null,
     key: get("key") || null,
+    cover_art_url: null,
     comment: get("comment"),
   };
 }
