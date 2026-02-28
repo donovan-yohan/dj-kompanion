@@ -15,6 +15,7 @@ _None_
 
 | Plan | Created | Completed |
 |------|---------|-----------|
+| [Metadata API Enrichment](exec-plans/completed/2026-02-28-metadata-api-enrichment.md) | 2026-02-28 | 2026-02-28 |
 | [Dockerized Analyzer](exec-plans/completed/2026-02-28-dockerized-analyzer.md) | 2026-02-28 | 2026-02-28 |
 | [Audio Post-Processing](exec-plans/completed/2026-02-27-audio-post-processing.md) | 2026-02-27 | 2026-02-27 |
 | [Download Queue](exec-plans/completed/2026-02-26-download-queue.md) | 2026-02-26 | 2026-02-27 |
