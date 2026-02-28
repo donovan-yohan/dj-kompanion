@@ -12,7 +12,7 @@ from httpx import ASGITransport, AsyncClient
 
 from server.app import app
 from server.downloader import DownloadError
-from server.models import EnrichedMetadata, RawMetadata
+from server.models import AnalysisResult, EnrichedMetadata, RawMetadata, SegmentInfo
 
 SAMPLE_RAW = RawMetadata(
     title="DJ Snake - Turn Down for What (Official Video)",
@@ -313,3 +313,51 @@ async def test_retag_tagging_error(client: AsyncClient) -> None:
     assert response.status_code == 500
     data = response.json()
     assert data["error"] == "tagging_failed"
+
+
+SAMPLE_ANALYSIS = AnalysisResult(
+    bpm=128.0,
+    key="Am",
+    key_camelot="8A",
+    beats=[0.234],
+    downbeats=[0.234],
+    segments=[
+        SegmentInfo(
+            label="Intro (32 bars)", original_label="intro", start=0.234, end=60.5, bars=32
+        ),
+    ],
+    vdj_written=False,
+)
+
+
+async def test_analyze_success(client: AsyncClient) -> None:
+    with (
+        patch("server.app.Path") as mock_fp_cls,
+        patch("server.app.analyze_audio", new_callable=AsyncMock, return_value=SAMPLE_ANALYSIS),
+    ):
+        mock_fp_cls.return_value.exists.return_value = True
+        response = await client.post("/api/analyze", json={"filepath": "/path/to/track.m4a"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["analysis"]["bpm"] == 128.0
+    assert data["analysis"]["key"] == "Am"
+
+
+async def test_analyze_file_not_found(client: AsyncClient) -> None:
+    with patch("server.app.Path") as mock_fp_cls:
+        mock_fp_cls.return_value.exists.return_value = False
+        response = await client.post("/api/analyze", json={"filepath": "/nonexistent.m4a"})
+    assert response.status_code == 404
+    assert response.json()["error"] == "file_not_found"
+
+
+async def test_analyze_failure(client: AsyncClient) -> None:
+    with (
+        patch("server.app.Path") as mock_fp_cls,
+        patch("server.app.analyze_audio", new_callable=AsyncMock, return_value=None),
+    ):
+        mock_fp_cls.return_value.exists.return_value = True
+        response = await client.post("/api/analyze", json={"filepath": "/path/to/track.m4a"})
+    assert response.status_code == 500
+    assert response.json()["error"] == "analysis_failed"

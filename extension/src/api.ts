@@ -1,5 +1,6 @@
 import { DEFAULT_HOST, DEFAULT_PORT } from "./constants.js";
 import type {
+  AnalyzeResponse,
   CookieData,
   PreviewResponse,
   RetagRequest,
@@ -78,6 +79,24 @@ export async function fetchPreview(url: string): Promise<PreviewResponse> {
     throw new Error(`Server error ${response.status}: ${text}`);
   }
   return (await response.json()) as PreviewResponse;
+}
+
+export async function requestAnalyze(filepath: string): Promise<AnalyzeResponse> {
+  const baseUrl = await getBaseUrl();
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/analyze`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filepath }),
+    },
+    300000 // 5 minute timeout — ML analysis is slow
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Server error ${response.status}: ${text}`);
+  }
+  return (await response.json()) as AnalyzeResponse;
 }
 
 export async function requestRetag(req: RetagRequest): Promise<RetagResponse> {

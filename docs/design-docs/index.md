@@ -11,3 +11,4 @@
 | [2026-02-26-03-server-design.md](2026-02-26-03-server-design.md) | Phase 3: FastAPI server + CLI integration | 2026-02-26 |
 | [2026-02-26-04-chrome-extension-design.md](2026-02-26-04-chrome-extension-design.md) | Phase 4: Chrome extension UI | 2026-02-26 |
 | [2026-02-26-download-queue-design.md](2026-02-26-download-queue-design.md) | Download queue with background processing | 2026-02-26 |
+| [2026-02-27-audio-post-processing-design.md](2026-02-27-audio-post-processing-design.md) | ML audio analysis: structure, BPM, key, VDJ cues | 2026-02-27 |

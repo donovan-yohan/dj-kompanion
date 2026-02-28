@@ -98,3 +98,30 @@ class HealthResponse(BaseModel):
     status: str
     yt_dlp_version: str
     claude_available: bool
+
+
+class SegmentInfo(BaseModel):
+    label: str
+    original_label: str
+    start: float
+    end: float
+    bars: int
+
+
+class AnalysisResult(BaseModel):
+    bpm: float
+    key: str
+    key_camelot: str
+    beats: list[float]
+    downbeats: list[float]
+    segments: list[SegmentInfo]
+    vdj_written: bool = False
+
+
+class AnalyzeRequest(BaseModel):
+    filepath: str
+
+
+class AnalyzeResponse(BaseModel):
+    status: str
+    analysis: AnalysisResult

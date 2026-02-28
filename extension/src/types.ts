@@ -51,6 +51,29 @@ export interface DownloadResponse {
   metadata?: EnrichedMetadata;
 }
 
+export interface SegmentInfo {
+  label: string;
+  original_label: string;
+  start: number;
+  end: number;
+  bars: number;
+}
+
+export interface AnalysisResult {
+  bpm: number;
+  key: string;
+  key_camelot: string;
+  beats: number[];
+  downbeats: number[];
+  segments: SegmentInfo[];
+  vdj_written: boolean;
+}
+
+export interface AnalyzeResponse {
+  status: string;
+  analysis: AnalysisResult;
+}
+
 export interface QueueItem {
   id: string;
   url: string;
@@ -58,10 +81,11 @@ export interface QueueItem {
   raw: RawMetadata;
   format: string;
   userEditedFields: string[];
-  status: "pending" | "downloading" | "complete" | "error";
+  status: "pending" | "downloading" | "complete" | "analyzing" | "analyzed" | "error";
   enrichmentSource?: "claude" | "basic" | "none";
   filepath?: string;
   error?: string;
+  analysis?: AnalysisResult;
   addedAt: number;
 }
 

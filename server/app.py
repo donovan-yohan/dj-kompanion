@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any, Literal
 
@@ -9,11 +10,14 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from server.analyzer import analyze_audio
 from server.config import load_config
 from server.downloader import DownloadError, download_audio, extract_metadata
 from server.enrichment import basic_enrich, is_claude_available, merge_metadata, try_enrich_metadata
 from server.logging_config import setup_logging
 from server.models import (
+    AnalyzeRequest,
+    AnalyzeResponse,
     DownloadRequest,
     DownloadResponse,
     HealthResponse,
@@ -23,6 +27,8 @@ from server.models import (
     RetagResponse,
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
+
+logger = logging.getLogger(__name__)
 
 setup_logging()
 
@@ -150,6 +156,9 @@ async def download(req: DownloadRequest) -> DownloadResponse:
             },
         ) from e
 
+    # Analysis is triggered by the extension via POST /api/analyze after download completes.
+    # This avoids duplicate ML pipeline runs.
+
     return DownloadResponse(
         status="complete",
         filepath=str(final_path),
@@ -180,3 +189,25 @@ async def retag(req: RetagRequest) -> RetagResponse:
         ) from e
 
     return RetagResponse(status="ok", filepath=str(final_path))
+
+
+@app.post("/api/analyze", response_model=AnalyzeResponse)
+async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
+    filepath = Path(req.filepath)
+    if not filepath.exists():
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "file_not_found", "message": f"File not found: {req.filepath}"},
+        )
+
+    cfg = load_config()
+    vdj_path = cfg.analysis.vdj_database if cfg.analysis.enabled else None
+    result = await analyze_audio(filepath, vdj_db_path=vdj_path, max_cues=cfg.analysis.max_cues)
+
+    if result is None:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "analysis_failed", "message": "Audio analysis failed"},
+        )
+
+    return AnalyzeResponse(status="ok", analysis=result)
