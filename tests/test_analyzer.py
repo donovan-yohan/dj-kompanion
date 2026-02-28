@@ -6,10 +6,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import httpx
-import pytest
 
 from server.analyzer import _to_container_path, analyze_audio
-
 
 SAMPLE_ANALYSIS_JSON = {
     "status": "ok",
