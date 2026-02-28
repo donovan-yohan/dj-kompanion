@@ -151,7 +151,7 @@ async def download(req: DownloadRequest) -> DownloadResponse:
         else:
             enrichment_source = "basic"
             final_metadata = merge_metadata(
-                req.metadata, basic_enrich(req.raw), req.user_edited_fields
+                req.metadata, basic, req.user_edited_fields
             )
     else:
         try:
