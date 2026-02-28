@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import asyncio
+import re
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
+from typing import Any
 
 import musicbrainzngs  # type: ignore[import-untyped]
 import pylast
+
+_REMIX_RE = re.compile(
+    r"\(([^)]+?)\s+(remix|edit|bootleg|vip|flip)\)",
+    re.IGNORECASE,
+)
 
 _useragent_set = False
 
@@ -162,5 +171,68 @@ def search_lastfm(
                 match_score=100.0,
             )
         ]
+    except Exception:
+        return []
+
+
+def _parse_remix(title: str) -> tuple[str, str | None]:
+    """Extract base title and remix query from a title.
+
+    Returns (base_title, remix_query) where remix_query is None if not a remix.
+    Example: "Rumble (Fred again.. Remix)" -> ("Rumble", "Rumble Fred again.. Remix")
+    """
+    match = _REMIX_RE.search(title)
+    if not match:
+        return title, None
+    base = title[: match.start()].strip()
+    remix_query = f"{base} {match.group(1)} {match.group(2)}"
+    return base, remix_query
+
+
+async def search_metadata(
+    artist: str,
+    title: str,
+    lastfm_api_key: str = "",
+    search_limit: int = 5,
+    user_agent: str = "dj-kompanion/1.0",
+) -> list[MetadataCandidate]:
+    """Run MusicBrainz and Last.fm searches in parallel and combine results.
+
+    If the title contains a remix suffix, also runs a second MusicBrainz search
+    with the remix query, deduplicating by musicbrainz_id. Returns candidates
+    sorted by match_score descending. Never raises — returns empty list on failure.
+    """
+    try:
+        base_title, remix_query = _parse_remix(title)
+
+        tasks: list[Coroutine[Any, Any, list[MetadataCandidate]]] = [
+            asyncio.to_thread(
+                search_musicbrainz, artist, base_title, search_limit, user_agent
+            ),
+            asyncio.to_thread(search_lastfm, artist, title, lastfm_api_key),
+        ]
+        if remix_query is not None:
+            tasks.append(
+                asyncio.to_thread(
+                    search_musicbrainz, artist, remix_query, search_limit, user_agent
+                )
+            )
+
+        results = await asyncio.gather(*tasks)
+
+        all_candidates: list[MetadataCandidate] = []
+        seen_mbids: set[str] = set()
+
+        for batch in results:
+            for candidate in batch:
+                mbid = candidate.musicbrainz_id
+                if mbid is not None:
+                    if mbid in seen_mbids:
+                        continue
+                    seen_mbids.add(mbid)
+                all_candidates.append(candidate)
+
+        all_candidates.sort(key=lambda c: c.match_score, reverse=True)
+        return all_candidates
     except Exception:
         return []

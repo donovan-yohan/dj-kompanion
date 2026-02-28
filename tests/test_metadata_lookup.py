@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock, patch
 
 import musicbrainzngs
 import pytest
 
-from server.metadata_lookup import MetadataCandidate, search_lastfm, search_musicbrainz
+from server.metadata_lookup import (
+    MetadataCandidate,
+    search_lastfm,
+    search_metadata,
+    search_musicbrainz,
+)
 
 
 def _make_recording(
@@ -280,3 +286,127 @@ def test_search_lastfm_handles_no_album() -> None:
 
     assert len(candidates) == 1
     assert candidates[0].album is None
+
+
+# ---------------------------------------------------------------------------
+# search_metadata orchestrator tests
+# ---------------------------------------------------------------------------
+
+
+def _make_candidate(
+    source: str = "musicbrainz",
+    mbid: str | None = "rec-1",
+    match_score: float = 90.0,
+) -> MetadataCandidate:
+    return MetadataCandidate(
+        source=source,
+        artist="Skrillex",
+        title="Rumble",
+        match_score=match_score,
+        musicbrainz_id=mbid,
+    )
+
+
+def test_search_metadata_combines_sources() -> None:
+    mb_candidate = _make_candidate(source="musicbrainz", mbid="rec-1", match_score=90.0)
+    lfm_candidate = _make_candidate(source="lastfm", mbid=None, match_score=100.0)
+
+    with (
+        patch(
+            "server.metadata_lookup.search_musicbrainz",
+            return_value=[mb_candidate],
+        ),
+        patch(
+            "server.metadata_lookup.search_lastfm",
+            return_value=[lfm_candidate],
+        ),
+    ):
+        result = asyncio.run(
+            search_metadata("Skrillex", "Rumble", lastfm_api_key="fake-key")
+        )
+
+    assert len(result) == 2
+    # sorted by match_score descending
+    assert result[0].source == "lastfm"
+    assert result[0].match_score == 100.0
+    assert result[1].source == "musicbrainz"
+    assert result[1].match_score == 90.0
+
+
+def test_search_metadata_handles_remix_title() -> None:
+    base_candidate = _make_candidate(source="musicbrainz", mbid="rec-base", match_score=80.0)
+    remix_candidate = _make_candidate(source="musicbrainz", mbid="rec-remix", match_score=95.0)
+
+    call_args: list[tuple[object, ...]] = []
+
+    def fake_search_musicbrainz(
+        artist: str, title: str, *args: object, **kwargs: object
+    ) -> list[MetadataCandidate]:
+        call_args.append((artist, title))
+        if "Fred again" in title:
+            return [remix_candidate]
+        return [base_candidate]
+
+    with (
+        patch(
+            "server.metadata_lookup.search_musicbrainz",
+            side_effect=fake_search_musicbrainz,
+        ),
+        patch(
+            "server.metadata_lookup.search_lastfm",
+            return_value=[],
+        ),
+    ):
+        result = asyncio.run(
+            search_metadata("Skrillex", "Rumble (Fred again.. Remix)")
+        )
+
+    # Should have called MusicBrainz twice (base + remix query)
+    mb_calls = [args for args in call_args]
+    assert len(mb_calls) == 2
+
+    # Both unique candidates present
+    mbids = {c.musicbrainz_id for c in result}
+    assert "rec-base" in mbids
+    assert "rec-remix" in mbids
+
+    # Sorted by score: remix (95) before base (80)
+    assert result[0].musicbrainz_id == "rec-remix"
+
+
+def test_search_metadata_deduplicates_by_mbid() -> None:
+    duplicate = _make_candidate(source="musicbrainz", mbid="rec-same", match_score=90.0)
+
+    with (
+        patch(
+            "server.metadata_lookup.search_musicbrainz",
+            return_value=[duplicate],
+        ),
+        patch(
+            "server.metadata_lookup.search_lastfm",
+            return_value=[],
+        ),
+    ):
+        # Use a remix title so MB is called twice, both returning the same mbid
+        result = asyncio.run(
+            search_metadata("Artist", "Song (Someone Remix)")
+        )
+
+    # Only one copy of the duplicate mbid
+    assert len([c for c in result if c.musicbrainz_id == "rec-same"]) == 1
+
+
+def test_search_metadata_returns_empty_on_all_failures() -> None:
+    with (
+        patch(
+            "server.metadata_lookup.search_musicbrainz",
+            return_value=[],
+        ),
+        patch(
+            "server.metadata_lookup.search_lastfm",
+            return_value=[],
+        ),
+    ):
+        result = asyncio.run(search_metadata("Nobody", "Nothing"))
+
+    assert result == []
