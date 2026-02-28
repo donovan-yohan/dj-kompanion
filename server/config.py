@@ -17,6 +17,13 @@ class LLMConfig(BaseModel):
     model: str = "haiku"
 
 
+class MetadataLookupConfig(BaseModel):
+    enabled: bool = True
+    lastfm_api_key: str = ""
+    musicbrainz_user_agent: str = "dj-kompanion/1.0"
+    search_limit: int = 5
+
+
 class AnalysisConfig(BaseModel):
     enabled: bool = True
     vdj_database: Path = Path("~/Documents/VirtualDJ/database.xml").expanduser()
@@ -31,6 +38,7 @@ class AppConfig(BaseModel):
     server_port: int = 9234
     llm: LLMConfig = LLMConfig()
     analysis: AnalysisConfig = AnalysisConfig()
+    metadata_lookup: MetadataLookupConfig = MetadataLookupConfig()
 
 
 def _serializable_defaults() -> dict[str, object]:

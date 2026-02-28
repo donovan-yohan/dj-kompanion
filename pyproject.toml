@@ -11,6 +11,8 @@ dependencies = [
     "pyyaml",
     "pydantic",
     "httpx",
+    "musicbrainzngs",
+    "pylast",
 ]
 
 [project.scripts]
@@ -29,6 +31,14 @@ packages = ["server"]
 
 [[tool.mypy.overrides]]
 module = "mutagen.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "musicbrainzngs.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "pylast.*"
 follow_imports = "skip"
 
 [tool.ruff]
