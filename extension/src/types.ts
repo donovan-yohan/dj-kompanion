@@ -11,12 +11,14 @@ export interface RawMetadata {
 export interface EnrichedMetadata {
   artist: string;
   title: string;
+  album: string | null;
   genre: string | null;
   year: number | null;
   label: string | null;
   energy: number | null;
   bpm: number | null;
   key: string | null;
+  cover_art_url: string | null;
   comment: string;
 }
 
@@ -47,7 +49,7 @@ export interface DownloadRequest {
 export interface DownloadResponse {
   status: string;
   filepath: string;
-  enrichment_source: "claude" | "basic" | "none";
+  enrichment_source: "api+claude" | "claude" | "basic" | "none";
   metadata?: EnrichedMetadata;
 }
 
@@ -82,7 +84,7 @@ export interface QueueItem {
   format: string;
   userEditedFields: string[];
   status: "pending" | "downloading" | "complete" | "analyzing" | "analyzed" | "error";
-  enrichmentSource?: "claude" | "basic" | "none";
+  enrichmentSource?: "api+claude" | "claude" | "basic" | "none";
   filepath?: string;
   error?: string;
   analysis?: AnalysisResult;

@@ -18,12 +18,14 @@ class RawMetadata(BaseModel):
 class EnrichedMetadata(BaseModel):
     artist: str
     title: str
+    album: str | None = None
     genre: str | None = None
     year: int | None = None
     label: str | None = None
     energy: int | None = None
     bpm: int | None = None
     key: str | None = None
+    cover_art_url: str | None = None
     comment: str = ""
 
 
@@ -80,7 +82,7 @@ class DownloadRequest(BaseModel):
 class DownloadResponse(BaseModel):
     status: str
     filepath: str
-    enrichment_source: Literal["claude", "basic", "none"] = "none"
+    enrichment_source: Literal["api+claude", "claude", "basic", "none"] = "none"
     metadata: EnrichedMetadata | None = None
 
 

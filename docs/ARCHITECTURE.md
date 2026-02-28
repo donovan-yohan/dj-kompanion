@@ -15,10 +15,11 @@ Input: a URL from the browser. Output: a downloaded media file with DJ-ready met
 |--------|---------|
 | `server/app.py` | FastAPI endpoints: health, preview, download, retag, analyze |
 | `server/models.py` | Pydantic models shared between endpoints (including SegmentInfo, AnalysisResult) |
-| `server/enrichment.py` | LLM enrichment (basic_enrich, enrich_metadata, try_enrich_metadata, merge_metadata) |
+| `server/enrichment.py` | LLM enrichment with API candidate selection (basic_enrich, enrich_metadata, try_enrich_metadata, merge_metadata) |
 | `server/downloader.py` | yt-dlp wrapper for metadata extraction and audio download |
 | `server/tagger.py` | File tagging via mutagen, filename sanitization |
-| `server/config.py` | Configuration loading (AppConfig, LLMConfig, AnalysisConfig) |
+| `server/config.py` | Configuration loading (AppConfig, LLMConfig, AnalysisConfig, MetadataLookupConfig) |
+| `server/metadata_lookup.py` | MusicBrainz + Last.fm search: MetadataCandidate, search_musicbrainz, search_lastfm, search_metadata |
 | `server/analyzer.py` | HTTP client proxying analysis requests to the analyzer container |
 | `server/vdj.py` | Virtual DJ database.xml writer with priority-based cue points |
 | `analyzer/app.py` | Analyzer container: FastAPI with POST /analyze endpoint |
@@ -36,7 +37,7 @@ Input: a URL from the browser. Output: a downloaded media file with DJ-ready met
 
 1. **Preview**: Extension sends URL -> server extracts metadata via yt-dlp -> basic_enrich parses artist/title -> returns raw + enriched to extension
 2. **Queue**: User confirms metadata in popup -> QueueItem written to chrome.storage.local -> service worker picks up pending items sequentially
-3. **Download**: Service worker sends URL + metadata + raw + user_edited_fields -> server runs yt-dlp download + Claude enrichment in parallel -> merge_metadata combines results respecting user edits -> tag_file writes metadata -> response includes final metadata + enrichment source
+3. **Download**: Service worker sends URL + metadata + raw + user_edited_fields -> server runs yt-dlp download + API metadata search (MusicBrainz + Last.fm) in parallel -> Claude receives raw metadata + API candidates, selects best match -> merge_metadata combines results respecting user edits -> tag_file writes metadata -> response includes final metadata + enrichment source (api+claude, claude, basic, or none)
 4. **Analysis** (post-download): Extension calls POST /api/analyze → main server translates filepath to container mount path → calls analyzer container (Docker, port 9235) over HTTP → container runs 5-stage ML pipeline (allin1 structure, essentia key, EDM reclassify, bar count, beat-snap) → returns AnalysisResult JSON → main server writes results to VDJ database.xml as named hot cues. Extension updates item status.
 5. **On-demand analysis**: Extension or user calls POST /api/analyze with filepath -> same pipeline as above -> returns AnalysisResult
 6. **Retag**: User edits tags on completed item -> extension sends filepath + metadata to /api/retag -> server re-writes tags via tag_file (may rename file)
@@ -55,7 +56,8 @@ Server logs to `~/.config/dj-kompanion/logs/server.log` via `server/logging_conf
 
 | Concern | Pattern |
 |---------|---------|
-| Enrichment fallback | Claude failure -> basic_enrich fallback -> user metadata as last resort |
+| Enrichment fallback | API+Claude -> Claude-only -> basic_enrich -> user metadata as last resort |
+| Metadata API search | MusicBrainz + Last.fm searched in parallel at download time; candidates passed to Claude for disambiguation |
 | User edit priority | Extension tracks initialMetadata snapshot; merge_metadata preserves user-edited fields |
 | Error boundaries | Each endpoint catches domain exceptions (DownloadError, TaggingError) and returns structured JSON errors |
 | Queue persistence | chrome.storage.local is single source of truth; popup is stateless renderer; service worker owns download lifecycle |

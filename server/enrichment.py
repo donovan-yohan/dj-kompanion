@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import re
 import subprocess
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from server.models import EnrichedMetadata, RawMetadata
+
+if TYPE_CHECKING:
+    from server.metadata_lookup import MetadataCandidate
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +70,52 @@ Return ONLY valid JSON matching this schema:
   "key": null,
   "comment": "source URL"
 }}"""
+
+_PROMPT_WITH_CANDIDATES_TEMPLATE = """\
+You are a metadata matcher for DJ music files. You have raw metadata from a YouTube
+download AND search results from music databases. Your job is to:
+
+1. Determine which search result (if any) matches this actual song
+2. Extract the best metadata by combining the match with raw context
+3. If no result matches, infer metadata as best you can
+
+Raw metadata from download:
+{raw_metadata_json}
+
+Search results from music databases:
+{candidates_json}
+
+Rules:
+- Pick the search result that matches this SPECIFIC recording (not just same artist)
+- For remixes: match the REMIX version, not the original. "Artist - Song (Remixer Remix)"
+  should match a release that credits the remixer, not the original release. If only the
+  original is in results, say no_match rather than using wrong release metadata.
+- Genre: prefer the API genre tags, pick the most specific applicable one
+  (e.g. "deep house" over "electronic")
+- If no search result matches well, say "no_match" and infer like before
+- Energy level 1-10 is always your inference (APIs don't have this)
+- cover_art_url: pass through from the selected candidate if available
+
+Return ONLY valid JSON:
+{{
+  "selected_candidate_index": null or number,
+  "confidence": "high" or "medium" or "low",
+  "artist": "string",
+  "title": "string",
+  "album": "string or null",
+  "genre": "string or null",
+  "year": null or number,
+  "label": "string or null",
+  "energy": null or number 1-10,
+  "bpm": null,
+  "key": null,
+  "comment": "source URL",
+  "cover_art_url": "string or null"
+}}"""
+
+
+def _candidates_to_json(candidates: list[MetadataCandidate]) -> str:
+    return json.dumps([dataclasses.asdict(c) for c in candidates], indent=2)
 
 
 def basic_enrich(raw: RawMetadata) -> EnrichedMetadata:
@@ -154,6 +204,7 @@ def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMeta
         return EnrichedMetadata(
             artist=str(data.get("artist") or ""),
             title=str(data.get("title") or ""),
+            album=str(data["album"]) if data.get("album") else None,
             genre=str(data["genre"]) if data.get("genre") else None,
             year=int(data["year"]) if data.get("year") else None,
             label=str(data["label"]) if data.get("label") else None,
@@ -161,6 +212,7 @@ def _parse_claude_response(response_text: str, raw: RawMetadata) -> EnrichedMeta
             bpm=None,
             key=None,
             comment=raw.source_url,
+            cover_art_url=str(data["cover_art_url"]) if data.get("cover_art_url") else None,
         )
     except (KeyError, ValueError, TypeError) as e:
         logger.warning("failed to parse claude response fields: %s", e)
@@ -180,7 +232,11 @@ async def is_claude_available() -> bool:
         return False
 
 
-async def _run_claude(raw: RawMetadata, model: str) -> EnrichedMetadata | None:
+async def _run_claude(
+    raw: RawMetadata,
+    model: str,
+    candidates: list[MetadataCandidate] | None = None,
+) -> EnrichedMetadata | None:
     """Run claude CLI and parse the response.
 
     Returns enriched metadata on success, None on any failure.
@@ -190,9 +246,15 @@ async def _run_claude(raw: RawMetadata, model: str) -> EnrichedMetadata | None:
         logger.warning("claude CLI not found on PATH")
         return None
 
-    prompt = _PROMPT_TEMPLATE.format(
-        raw_metadata_json=raw.model_dump_json(indent=2),
-    )
+    if candidates:
+        prompt = _PROMPT_WITH_CANDIDATES_TEMPLATE.format(
+            raw_metadata_json=raw.model_dump_json(indent=2),
+            candidates_json=_candidates_to_json(candidates),
+        )
+    else:
+        prompt = _PROMPT_TEMPLATE.format(
+            raw_metadata_json=raw.model_dump_json(indent=2),
+        )
 
     cmd = ["claude", "-p", "--model", model, "--output-format", "json", prompt]
 
@@ -216,18 +278,26 @@ async def _run_claude(raw: RawMetadata, model: str) -> EnrichedMetadata | None:
     return _parse_claude_response(result.stdout, raw)
 
 
-async def enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata:
+async def enrich_metadata(
+    raw: RawMetadata,
+    model: str = "haiku",
+    candidates: list[MetadataCandidate] | None = None,
+) -> EnrichedMetadata:
     """Use claude CLI to parse and enrich raw metadata.
 
     Falls back to basic parsing if claude is unavailable.
     Never raises -- always returns an EnrichedMetadata.
     """
-    return await _run_claude(raw, model) or basic_enrich(raw)
+    return await _run_claude(raw, model, candidates) or basic_enrich(raw)
 
 
-async def try_enrich_metadata(raw: RawMetadata, model: str = "haiku") -> EnrichedMetadata | None:
+async def try_enrich_metadata(
+    raw: RawMetadata,
+    model: str = "haiku",
+    candidates: list[MetadataCandidate] | None = None,
+) -> EnrichedMetadata | None:
     """Like enrich_metadata, but returns None instead of falling back.
 
     Used by the download endpoint to distinguish Claude success from failure.
     """
-    return await _run_claude(raw, model)
+    return await _run_claude(raw, model, candidates)

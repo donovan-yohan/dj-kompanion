@@ -14,6 +14,7 @@ from server.enrichment import (
     merge_metadata,
     try_enrich_metadata,
 )
+from server.metadata_lookup import MetadataCandidate
 from server.models import EnrichedMetadata, RawMetadata
 
 
@@ -48,6 +49,10 @@ def claude_json(
     year: int | None = None,
     energy: int | None = None,
     comment: str = "https://youtube.com/watch?v=test",
+    album: str | None = None,
+    cover_art_url: str | None = None,
+    selected_candidate_index: int | None = None,
+    confidence: str | None = None,
 ) -> str:
     data: dict[str, Any] = {
         "artist": artist,
@@ -59,7 +64,12 @@ def claude_json(
         "bpm": None,
         "key": None,
         "comment": comment,
+        "album": album,
+        "cover_art_url": cover_art_url,
     }
+    if selected_candidate_index is not None or confidence is not None:
+        data["selected_candidate_index"] = selected_candidate_index
+        data["confidence"] = confidence
     return json.dumps(data)
 
 
@@ -509,3 +519,108 @@ def test_try_enrich_returns_none_on_invalid_json() -> None:
     with patch("server.enrichment.subprocess.run", side_effect=fake_run):
         result = asyncio.run(try_enrich_metadata(raw))
     assert result is None
+
+
+# --- enrich_metadata with candidates ---
+
+
+def make_candidate(
+    artist: str = "Bicep",
+    title: str = "GLUE",
+    album: str | None = "Bicep",
+    genre_tags: list[str] | None = None,
+    cover_art_url: str | None = "https://coverartarchive.org/release/abc/front-250",
+    match_score: float = 95.0,
+) -> MetadataCandidate:
+    return MetadataCandidate(
+        source="musicbrainz",
+        artist=artist,
+        title=title,
+        album=album,
+        label="Ninja Tune",
+        year=2017,
+        genre_tags=genre_tags or ["house", "electronic"],
+        match_score=match_score,
+        musicbrainz_id="test-mbid-123",
+        cover_art_url=cover_art_url,
+    )
+
+
+def test_enrich_with_candidates_selects_match() -> None:
+    """When Claude selects a candidate, album/genre/cover_art_url should be populated."""
+    raw = make_raw(title="Bicep - GLUE")
+    candidates = [make_candidate()]
+    response = claude_json(
+        artist="Bicep",
+        title="GLUE",
+        genre="house",
+        year=2017,
+        energy=7,
+        album="Bicep",
+        cover_art_url="https://coverartarchive.org/release/abc/front-250",
+        selected_candidate_index=0,
+        confidence="high",
+    )
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(response)):
+        result = asyncio.run(enrich_metadata(raw, candidates=candidates))
+
+    assert isinstance(result, EnrichedMetadata)
+    assert result.artist == "Bicep"
+    assert result.title == "GLUE"
+    assert result.genre == "house"
+    assert result.year == 2017
+    assert result.energy == 7
+    assert result.album == "Bicep"
+    assert result.cover_art_url == "https://coverartarchive.org/release/abc/front-250"
+    assert result.comment == raw.source_url
+
+
+def test_enrich_with_candidates_no_match_falls_back() -> None:
+    """When Claude returns selected_candidate_index=null, LLM-inferred fields are used."""
+    raw = make_raw(title="Some Artist - Some Remix")
+    candidates = [make_candidate(title="Original Song")]
+    response = claude_json(
+        artist="Some Artist",
+        title="Some Remix",
+        genre="techno",
+        year=2023,
+        energy=9,
+        album=None,
+        cover_art_url=None,
+        selected_candidate_index=None,
+        confidence="low",
+    )
+
+    with patch("server.enrichment.subprocess.run", side_effect=_fake_run_success(response)):
+        result = asyncio.run(enrich_metadata(raw, candidates=candidates))
+
+    assert result.artist == "Some Artist"
+    assert result.title == "Some Remix"
+    assert result.genre == "techno"
+    assert result.album is None
+    assert result.cover_art_url is None
+
+
+def test_enrich_with_empty_candidates_uses_original_prompt() -> None:
+    """When candidates=[], the existing behavior works (backward compat)."""
+    raw = make_raw()
+    response = claude_json(artist="Bonobo", title="Kong", genre="Downtempo")
+    captured_prompts: list[str] = []
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if "--version" in cmd:
+            return make_process("", returncode=0)
+        # Capture the prompt argument (last element of cmd)
+        captured_prompts.append(cmd[-1])
+        return make_process(response, returncode=0)
+
+    with patch("server.enrichment.subprocess.run", side_effect=fake_run):
+        result = asyncio.run(enrich_metadata(raw, candidates=[]))
+
+    assert result.artist == "Bonobo"
+    assert result.title == "Kong"
+    assert result.genre == "Downtempo"
+    # Verify the original prompt was used (no "candidates_json" placeholder)
+    assert len(captured_prompts) == 1
+    assert "Search results from music databases" not in captured_prompts[0]
