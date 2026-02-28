@@ -8,11 +8,12 @@ Already covered by test_app.py (not duplicated here):
 - API+Claude happy path → enrichment_source: "api+claude"
 - API returns empty (fails/down), Claude succeeds → enrichment_source: "claude"
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 from server.app import app
 from server.config import AppConfig, LLMConfig, MetadataLookupConfig
 from server.metadata_lookup import MetadataCandidate
-from server.models import EnrichedMetadata, RawMetadata
+from server.models import EnrichedMetadata
 
 SAMPLE_RAW_DICT: dict[str, object] = {
     "title": "Peggy Gou - (It Goes Like) Nanana",

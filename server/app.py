@@ -14,8 +14,8 @@ from server.analyzer import analyze_audio
 from server.config import load_config
 from server.downloader import DownloadError, download_audio, extract_metadata
 from server.enrichment import basic_enrich, is_claude_available, merge_metadata, try_enrich_metadata
-from server.metadata_lookup import MetadataCandidate, search_metadata
 from server.logging_config import setup_logging
+from server.metadata_lookup import MetadataCandidate, search_metadata
 from server.models import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -136,10 +136,7 @@ async def download(req: DownloadRequest) -> DownloadResponse:
 
         filepath = filepath_result
 
-        if isinstance(candidates_result, BaseException):
-            candidates = []
-        else:
-            candidates = candidates_result
+        candidates = [] if isinstance(candidates_result, BaseException) else candidates_result
 
         claude_result = await try_enrich_metadata(
             req.raw, model=cfg.llm.model, candidates=candidates

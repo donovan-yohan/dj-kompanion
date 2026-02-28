@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import re
-from collections.abc import Coroutine
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 import musicbrainzngs  # type: ignore[import-untyped]
 import pylast
@@ -206,16 +208,12 @@ async def search_metadata(
         base_title, remix_query = _parse_remix(title)
 
         tasks: list[Coroutine[Any, Any, list[MetadataCandidate]]] = [
-            asyncio.to_thread(
-                search_musicbrainz, artist, base_title, search_limit, user_agent
-            ),
+            asyncio.to_thread(search_musicbrainz, artist, base_title, search_limit, user_agent),
             asyncio.to_thread(search_lastfm, artist, title, lastfm_api_key),
         ]
         if remix_query is not None:
             tasks.append(
-                asyncio.to_thread(
-                    search_musicbrainz, artist, remix_query, search_limit, user_agent
-                )
+                asyncio.to_thread(search_musicbrainz, artist, remix_query, search_limit, user_agent)
             )
 
         results = await asyncio.gather(*tasks)

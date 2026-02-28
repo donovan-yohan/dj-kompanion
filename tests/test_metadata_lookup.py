@@ -4,7 +4,6 @@ import asyncio
 from unittest.mock import MagicMock, patch
 
 import musicbrainzngs
-import pytest
 
 from server.metadata_lookup import (
     MetadataCandidate,
@@ -321,9 +320,7 @@ def test_search_metadata_combines_sources() -> None:
             return_value=[lfm_candidate],
         ),
     ):
-        result = asyncio.run(
-            search_metadata("Skrillex", "Rumble", lastfm_api_key="fake-key")
-        )
+        result = asyncio.run(search_metadata("Skrillex", "Rumble", lastfm_api_key="fake-key"))
 
     assert len(result) == 2
     # sorted by match_score descending
@@ -357,9 +354,7 @@ def test_search_metadata_handles_remix_title() -> None:
             return_value=[],
         ),
     ):
-        result = asyncio.run(
-            search_metadata("Skrillex", "Rumble (Fred again.. Remix)")
-        )
+        result = asyncio.run(search_metadata("Skrillex", "Rumble (Fred again.. Remix)"))
 
     # Should have called MusicBrainz twice (base + remix query)
     mb_calls = [args for args in call_args]
@@ -388,9 +383,7 @@ def test_search_metadata_deduplicates_by_mbid() -> None:
         ),
     ):
         # Use a remix title so MB is called twice, both returning the same mbid
-        result = asyncio.run(
-            search_metadata("Artist", "Song (Someone Remix)")
-        )
+        result = asyncio.run(search_metadata("Artist", "Song (Someone Remix)"))
 
     # Only one copy of the duplicate mbid
     assert len([c for c in result if c.musicbrainz_id == "rec-same"]) == 1

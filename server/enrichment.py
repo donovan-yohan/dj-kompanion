@@ -6,10 +6,12 @@ import json
 import logging
 import re
 import subprocess
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from server.metadata_lookup import MetadataCandidate
 from server.models import EnrichedMetadata, RawMetadata
+
+if TYPE_CHECKING:
+    from server.metadata_lookup import MetadataCandidate
 
 logger = logging.getLogger(__name__)
 
