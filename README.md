@@ -10,6 +10,7 @@ uv sync
 cd extension && npm install && npm run build && cd ..
 
 # 2. Start the analyzer container (ML audio analysis)
+#    First build takes a few minutes; subsequent starts are instant
 docker compose up -d
 
 # 3. Start the server
@@ -18,6 +19,10 @@ uv run uvicorn server.app:app --reload --port 9234
 # 4. Load the extension in Chrome
 #    chrome://extensions → Developer mode → Load unpacked → select extension/
 ```
+
+**Verify it's working:**
+- Analyzer: `curl http://localhost:9235/health` → `{"status":"ok"}`
+- Server: `curl http://localhost:9234/api/health` → `{"status":"ok","yt_dlp_version":"...","claude_available":...}`
 
 ## Architecture
 
