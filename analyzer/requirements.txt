@@ -3,4 +3,4 @@ uvicorn
 numpy
 soundfile
 pydantic
-essentia
+essentia==2.1b6.dev1389

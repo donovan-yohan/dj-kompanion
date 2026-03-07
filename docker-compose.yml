@@ -1,6 +1,7 @@
 services:
   analyzer:
     build: ./analyzer
+    platform: linux/amd64
     ports:
       - "9235:9235"
     volumes:
