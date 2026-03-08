@@ -108,7 +108,8 @@ class TestWriteToVdjDatabase:
     def test_skips_unknown_song(self, tmp_path: Path) -> None:
         db_path = _make_db(tmp_path)
         result = _sample_result()
-        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
+        written = write_to_vdj_database(db_path, "/path/to/track.m4a", result)
+        assert written is False
 
         tree = ET.parse(db_path)
         song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
@@ -117,7 +118,8 @@ class TestWriteToVdjDatabase:
     def test_writes_cue_pois(self, tmp_path: Path) -> None:
         db_path = _make_db_with_song(tmp_path)
         result = _sample_result()
-        write_to_vdj_database(db_path, "/path/to/track.m4a", result, max_cues=8)
+        written = write_to_vdj_database(db_path, "/path/to/track.m4a", result, max_cues=8)
+        assert written is True
 
         tree = ET.parse(db_path)
         song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
@@ -168,7 +170,8 @@ class TestWriteToVdjDatabase:
         db_path = tmp_path / "nonexistent" / "database.xml"
         result = _sample_result()
         # Should not raise
-        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
+        written = write_to_vdj_database(db_path, "/path/to/track.m4a", result)
+        assert written is False
 
     def test_handles_filepath_with_quotes_and_apostrophes(self, tmp_path: Path) -> None:
         special_path = "/path/with \"quote\" and 'apostrophe'.m4a"

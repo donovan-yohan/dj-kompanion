@@ -74,21 +74,21 @@ def write_to_vdj_database(
     filepath: str,
     result: AnalysisResult,
     max_cues: int = 8,
-) -> None:
+) -> bool:
     """Write analysis results to VDJ database.xml.
 
     Creates or updates the Song element for the given filepath.
-    Silently skips if db_path does not exist.
+    Returns True if cues were written, False if skipped.
     """
     if not db_path.exists():
         logger.warning("VDJ database not found at %s, skipping", db_path)
-        return
+        return False
 
     try:
         tree = ET.parse(db_path)
     except ET.ParseError:
         logger.warning("Failed to parse VDJ database at %s", db_path)
-        return
+        return False
 
     root = tree.getroot()
 
@@ -97,7 +97,7 @@ def write_to_vdj_database(
     song = next((s for s in root.findall("Song") if s.get("FilePath") == filepath), None)
     if song is None:
         logger.info("Song not yet in VDJ database, skipping cue write for %s", filepath)
-        return
+        return False
 
     # Remove only our cue POIs (Type="cue") — leave VDJ's own elements untouched
     for child in list(song):
@@ -133,3 +133,4 @@ def write_to_vdj_database(
     output = output.replace("\r\n", "\n").replace("\n", "\r\n")
     db_path.write_bytes(output.encode("utf-8"))
     logger.info("Wrote %d cue points to VDJ database for %s", len(cues), filepath)
+    return True
