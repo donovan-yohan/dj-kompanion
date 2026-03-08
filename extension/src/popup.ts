@@ -1,11 +1,15 @@
-import { healthCheck, requestRetag } from "./api.js";
+import { healthCheck, requestRetag, resolvePlaylist } from "./api.js";
 import { getEl } from "./dom.js";
 import { readQueue, writeQueue } from "./queue-storage.js";
-import type { EnrichedMetadata, QueueItem, RawMetadata } from "./types.js";
+import type { EnrichedMetadata, QueueItem } from "./types.js";
 
-let currentUrl = "";
-let initialMetadata: EnrichedMetadata | null = null;
-let previewRaw: RawMetadata | null = null;
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getInput(id: string): HTMLInputElement {
+  return getEl<HTMLInputElement>(id);
+}
 
 function stripPlaylistParams(url: string): string {
   try {
@@ -20,87 +24,37 @@ function stripPlaylistParams(url: string): string {
   }
 }
 
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function getInput(id: string): HTMLInputElement {
-  return getEl<HTMLInputElement>(id);
-}
-
-function readMetadataFromForm(): EnrichedMetadata {
-  return {
-    artist: getInput("field-artist").value,
-    title: getInput("field-title").value,
-    album: null,
-    genre: getInput("field-genre").value || null,
-    year: getInput("field-year").value !== "" ? parseInt(getInput("field-year").value, 10) : null,
-    label: getInput("field-label").value || null,
-    energy:
-      getInput("field-energy").value !== "" ? parseInt(getInput("field-energy").value, 10) : null,
-    bpm: getInput("field-bpm").value !== "" ? parseFloat(getInput("field-bpm").value) : null,
-    key: getInput("field-key").value || null,
-    cover_art_url: null,
-    comment: getInput("field-comment").value,
-  };
+function hasPlaylistParam(url: string): boolean {
+  try {
+    return new URL(url).searchParams.has("list");
+  } catch {
+    return false;
+  }
 }
 
 function getSelectedFormat(): string {
-  const radios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="format"]'));
-  for (const radio of radios) {
-    if (radio.checked) return radio.value;
+  return (document.getElementById("format-select") as HTMLSelectElement)?.value ?? "m4a";
+}
+
+function placeholderMetadata(title: string, url: string): EnrichedMetadata {
+  let artist = "";
+  let trackTitle = title;
+  if (title.includes(" - ")) {
+    [artist, trackTitle] = title.split(" - ", 2);
   }
-  return "best";
-}
-
-function computeUserEditedFields(current: EnrichedMetadata): string[] {
-  if (initialMetadata === null) return [];
-  const fields: Array<keyof EnrichedMetadata> = [
-    "artist",
-    "title",
-    "genre",
-    "year",
-    "label",
-    "energy",
-    "bpm",
-    "key",
-    "comment",
-  ];
-  return fields.filter((field) => {
-    const initial = initialMetadata![field];
-    const now = current[field];
-    return String(initial ?? "") !== String(now ?? "");
-  });
-}
-
-function populatePreviewForm(metadata: EnrichedMetadata, source: string, url: string): void {
-  getInput("field-artist").value = metadata.artist;
-  getInput("field-title").value = metadata.title;
-  getInput("field-genre").value = metadata.genre ?? "";
-  getInput("field-year").value = metadata.year != null ? String(metadata.year) : "";
-  getInput("field-label").value = metadata.label ?? "";
-  getInput("field-energy").value = metadata.energy != null ? String(metadata.energy) : "";
-  getInput("field-bpm").value = metadata.bpm != null ? String(metadata.bpm) : "";
-  getInput("field-key").value = metadata.key ?? "";
-  getInput("field-comment").value = metadata.comment || url;
-
-  const enrichmentEl = document.getElementById("enrichment-source");
-  if (enrichmentEl) {
-    enrichmentEl.textContent = source === "claude" ? "Enriched by Claude" : "Metadata preview";
-  }
-}
-
-function showView(view: "fetch" | "loading" | "preview" | "fetch-error"): void {
-  const sections: Record<string, string[]> = {
-    "section-fetch": ["fetch"],
-    "section-loading": ["loading"],
-    "section-preview": ["preview"],
-    "section-fetch-error": ["fetch-error"],
+  return {
+    artist: artist.trim(),
+    title: trackTitle.trim(),
+    album: null,
+    genre: null,
+    year: null,
+    label: null,
+    energy: null,
+    bpm: null,
+    key: null,
+    cover_art_url: null,
+    comment: url,
   };
-  for (const [id, views] of Object.entries(sections)) {
-    const el = document.getElementById(id);
-    if (el) el.hidden = !views.includes(view);
-  }
 }
 
 function renderQueueList(queue: QueueItem[]): void {
@@ -336,35 +290,32 @@ function readEditFields(itemEl: HTMLElement): EnrichedMetadata {
   };
 }
 
-async function handleFetchMetadata(): Promise<void> {
-  showView("loading");
-
-  try {
-    // TODO: fetchPreview removed — popup.ts will be rewritten in Task 6
-    throw new Error("Preview flow removed; use playlist flow instead");
-    showView("preview");
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    const errEl = document.getElementById("fetch-error-message");
-    if (errEl) errEl.textContent = errMsg;
-    showView("fetch-error");
+function showError(msg: string): void {
+  const section = document.getElementById("section-error");
+  const msgEl = document.getElementById("error-message");
+  if (section && msgEl) {
+    msgEl.textContent = msg;
+    section.hidden = false;
   }
 }
 
-async function handleQueueDownload(): Promise<void> {
-  const metadata = readMetadataFromForm();
-  const format = getSelectedFormat();
-  const userEditedFields = computeUserEditedFields(metadata);
+function hideError(): void {
+  const section = document.getElementById("section-error");
+  if (section) section.hidden = true;
+}
 
-  if (previewRaw === null) return;
+async function handleDownload(url: string, pageTitle: string): Promise<void> {
+  const videoUrl = stripPlaylistParams(url);
+  const format = getSelectedFormat();
+  const metadata = placeholderMetadata(pageTitle, videoUrl);
 
   const item: QueueItem = {
     id: generateId(),
-    url: currentUrl,
+    url: videoUrl,
     metadata,
-    raw: previewRaw,
+    raw: null,
     format,
-    userEditedFields,
+    userEditedFields: [],
     status: "pending",
     addedAt: Date.now(),
   };
@@ -372,22 +323,45 @@ async function handleQueueDownload(): Promise<void> {
   const queue = await readQueue();
   queue.push(item);
   await writeQueue(queue);
-
-  // Reset form state
-  initialMetadata = null;
-  previewRaw = null;
-  showView("fetch");
-
-  // Trigger service worker to process
   void chrome.runtime.sendMessage({ type: "queue_process" });
 }
 
-async function init(): Promise<void> {
-  initialMetadata = null;
-  previewRaw = null;
+async function handleDownloadPlaylist(url: string): Promise<void> {
+  const format = getSelectedFormat();
+  const btn = document.getElementById("btn-download-playlist") as HTMLButtonElement;
+  btn.disabled = true;
+  btn.textContent = "Resolving...";
 
+  try {
+    const result = await resolvePlaylist(url);
+    const queue = await readQueue();
+    for (const track of result.tracks) {
+      const metadata = placeholderMetadata(track.title, track.url);
+      queue.push({
+        id: generateId(),
+        url: track.url,
+        metadata,
+        raw: null,
+        format,
+        userEditedFields: [],
+        status: "pending",
+        addedAt: Date.now(),
+      });
+    }
+    await writeQueue(queue);
+    void chrome.runtime.sendMessage({ type: "queue_process" });
+  } catch (err) {
+    showError(err instanceof Error ? err.message : String(err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Playlist";
+  }
+}
+
+async function init(): Promise<void> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  currentUrl = stripPlaylistParams(tabs[0]?.url ?? "");
+  const currentUrl = tabs[0]?.url ?? "";
+  const pageTitle = tabs[0]?.title ?? "";
 
   const isConnected = await healthCheck();
   const statusEl = document.getElementById("server-status");
@@ -396,16 +370,24 @@ async function init(): Promise<void> {
     statusEl.title = isConnected ? "Connected" : "Server not running";
   }
 
-  const fetchBtn = getEl<HTMLButtonElement>("btn-fetch");
-  fetchBtn.disabled = !isConnected || !currentUrl;
+  // Format persistence
+  const stored = await chrome.storage.sync.get({ format: "m4a" });
+  const formatSelect = document.getElementById("format-select") as HTMLSelectElement;
+  if (formatSelect) formatSelect.value = stored["format"] as string;
 
-  showView("fetch");
+  const downloadBtn = getEl<HTMLButtonElement>("btn-download");
+  downloadBtn.disabled = !isConnected || !currentUrl;
 
-  // Render existing queue
+  // Show playlist button only when URL has list= param
+  const playlistBtn = document.getElementById("btn-download-playlist") as HTMLButtonElement;
+  if (playlistBtn) {
+    playlistBtn.hidden = !hasPlaylistParam(currentUrl);
+    playlistBtn.disabled = !isConnected;
+  }
+
   const queue = await readQueue();
   renderQueueList(queue);
 
-  // Prune old items beyond 10
   if (queue.length > 10) {
     const sorted = queue.slice().sort((a, b) => b.addedAt - a.addedAt);
     await writeQueue(sorted.slice(0, 10));
@@ -420,23 +402,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
   void init();
 
-  getEl<HTMLButtonElement>("btn-fetch").addEventListener("click", () => {
-    void handleFetchMetadata();
+  // Persist format selection
+  document.getElementById("format-select")?.addEventListener("change", () => {
+    void chrome.storage.sync.set({ format: getSelectedFormat() });
   });
 
-  getEl<HTMLButtonElement>("btn-queue").addEventListener("click", () => {
-    void handleQueueDownload();
+  getEl<HTMLButtonElement>("btn-download").addEventListener("click", () => {
+    void (async () => {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const url = tabs[0]?.url ?? "";
+      const title = tabs[0]?.title ?? "";
+      void handleDownload(url, title);
+    })();
   });
 
-  getEl<HTMLButtonElement>("btn-cancel-preview").addEventListener("click", () => {
-    showView("fetch");
+  document.getElementById("btn-download-playlist")?.addEventListener("click", () => {
+    void (async () => {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const url = tabs[0]?.url ?? "";
+      void handleDownloadPlaylist(url);
+    })();
   });
 
-  getEl<HTMLButtonElement>("btn-retry-fetch").addEventListener("click", () => {
-    showView("fetch");
+  document.getElementById("btn-dismiss-error")?.addEventListener("click", () => {
+    hideError();
   });
 
-  // Live updates when storage changes
   chrome.storage.onChanged.addListener((changes) => {
     if (changes["queue"]) {
       const newQueue = (changes["queue"].newValue as QueueItem[] | undefined) ?? [];
