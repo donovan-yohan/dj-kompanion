@@ -129,6 +129,14 @@ def get_unsynced(db_path: Path) -> list[TrackRow]:
     return [_row_to_track(r) for r in rows]
 
 
+def get_all_tracks(db_path: Path) -> list[TrackRow]:
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM tracks ORDER BY created_at DESC"
+        ).fetchall()
+    return [_row_to_track(r) for r in rows]
+
+
 def get_pending_analysis(db_path: Path) -> list[TrackRow]:
     with _connect(db_path) as conn:
         rows = conn.execute(

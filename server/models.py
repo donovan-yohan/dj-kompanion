@@ -132,3 +132,32 @@ class ResolvePlaylistRequest(BaseModel):
 class ResolvePlaylistResponse(BaseModel):
     playlist_title: str
     tracks: list[PlaylistTrack]
+
+
+class SyncVdjResponse(BaseModel):
+    status: str
+    synced: int
+    skipped: int
+    errors: list[str]
+    refused: bool = False
+
+
+class TrackStatus(BaseModel):
+    filepath: str
+    status: str
+    analysis_path: str | None = None
+    error: str | None = None
+    analyzed_at: str | None = None
+    synced_at: str | None = None
+
+
+class TracksResponse(BaseModel):
+    tracks: list[TrackStatus]
+
+
+class ReanalyzeRequest(BaseModel):
+    filepath: str
+
+
+class ReanalyzeResponse(BaseModel):
+    status: str

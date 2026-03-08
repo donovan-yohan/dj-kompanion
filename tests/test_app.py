@@ -422,3 +422,93 @@ async def test_resolve_playlist_failure(client: AsyncClient) -> None:
     assert response.status_code == 404
     data = response.json()
     assert data["error"] == "playlist_resolve_failed"
+
+
+async def test_sync_vdj_endpoint(client: AsyncClient) -> None:
+    from server.vdj_sync import SyncResult
+
+    mock_result = SyncResult(synced=2, skipped=1, errors=[], refused=False)
+    with patch("server.app.sync_vdj", return_value=mock_result):
+        response = await client.post("/api/sync-vdj")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["synced"] == 2
+    assert data["skipped"] == 1
+    assert data["refused"] is False
+    assert data["status"] == "ok"
+
+
+async def test_sync_vdj_refused(client: AsyncClient) -> None:
+    from server.vdj_sync import SyncResult
+
+    mock_result = SyncResult(synced=0, skipped=0, errors=[], refused=True)
+    with patch("server.app.sync_vdj", return_value=mock_result):
+        response = await client.post("/api/sync-vdj")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["refused"] is True
+    assert data["status"] == "refused"
+
+
+async def test_tracks_endpoint(client: AsyncClient) -> None:
+    from server.track_db import TrackRow
+
+    mock_tracks = [
+        TrackRow(
+            id=1,
+            filepath="/music/track.m4a",
+            analysis_path="/analysis/track.json",
+            status="analyzed",
+            error=None,
+            analyzed_at="2026-01-01T00:00:00",
+            synced_at=None,
+            created_at="2026-01-01T00:00:00",
+        ),
+    ]
+    with patch("server.app.get_all_tracks", return_value=mock_tracks):
+        response = await client.get("/api/tracks")
+    assert response.status_code == 200
+    data = response.json()
+    assert "tracks" in data
+    assert len(data["tracks"]) == 1
+    assert data["tracks"][0]["filepath"] == "/music/track.m4a"
+    assert data["tracks"][0]["status"] == "analyzed"
+
+
+async def test_tracks_endpoint_empty(client: AsyncClient) -> None:
+    with patch("server.app.get_all_tracks", return_value=[]):
+        response = await client.get("/api/tracks")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tracks"] == []
+
+
+async def test_reanalyze_not_found(client: AsyncClient) -> None:
+    with patch("server.app.get_track", return_value=None):
+        response = await client.post("/api/reanalyze", json={"filepath": "/nonexistent.m4a"})
+    assert response.status_code == 404
+    assert response.json()["error"] == "not_found"
+
+
+async def test_reanalyze_success(client: AsyncClient) -> None:
+    from server.track_db import TrackRow
+
+    mock_track = TrackRow(
+        id=1,
+        filepath="/music/track.m4a",
+        analysis_path=None,
+        status="failed",
+        error="previous error",
+        analyzed_at=None,
+        synced_at=None,
+        created_at="2026-01-01T00:00:00",
+    )
+    with (
+        patch("server.app.get_track", return_value=mock_track),
+        patch("server.app.upsert_track"),
+        patch("server.app.analyze_audio", new_callable=AsyncMock),
+    ):
+        response = await client.post("/api/reanalyze", json={"filepath": "/music/track.m4a"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "queued"

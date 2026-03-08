@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from server.analyzer import analyze_audio
-from server.config import load_config
+from server.config import CONFIG_DIR, load_config
 from server.downloader import DownloadError, download_audio, extract_metadata, resolve_playlist
 from server.enrichment import basic_enrich, is_claude_available, merge_metadata, try_enrich_metadata
 from server.logging_config import setup_logging
@@ -23,16 +23,26 @@ from server.models import (
     DownloadResponse,
     HealthResponse,
     PlaylistTrack,
+    ReanalyzeRequest,
+    ReanalyzeResponse,
     ResolvePlaylistRequest,
     ResolvePlaylistResponse,
     RetagRequest,
     RetagResponse,
+    SyncVdjResponse,
+    TracksResponse,
+    TrackStatus,
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
+from server.track_db import get_all_tracks, get_track, init_db, upsert_track
+from server.vdj_sync import sync_vdj
 
 logger = logging.getLogger(__name__)
 
 setup_logging()
+
+# Initialize track database on startup
+init_db(CONFIG_DIR / "tracks.db")
 
 app = FastAPI(title="dj-kompanion", version="0.1.0")
 
@@ -249,3 +259,59 @@ async def resolve_playlist_endpoint(req: ResolvePlaylistRequest) -> ResolvePlayl
         playlist_title=playlist_title,
         tracks=[PlaylistTrack(url=url, title=title) for url, title in tracks],
     )
+
+
+@app.post("/api/sync-vdj", response_model=SyncVdjResponse)
+async def sync_vdj_endpoint() -> SyncVdjResponse:
+    cfg = load_config()
+    db_path = CONFIG_DIR / "tracks.db"
+    result = sync_vdj(db_path, cfg.analysis.vdj_database, max_cues=cfg.analysis.max_cues)
+    return SyncVdjResponse(
+        status="refused" if result.refused else "ok",
+        synced=result.synced,
+        skipped=result.skipped,
+        errors=result.errors,
+        refused=result.refused,
+    )
+
+
+@app.get("/api/tracks", response_model=TracksResponse)
+async def tracks_endpoint() -> TracksResponse:
+    db_path = CONFIG_DIR / "tracks.db"
+    rows = get_all_tracks(db_path)
+    tracks = [
+        TrackStatus(
+            filepath=r.filepath,
+            status=r.status,
+            analysis_path=r.analysis_path,
+            error=r.error,
+            analyzed_at=r.analyzed_at,
+            synced_at=r.synced_at,
+        )
+        for r in rows
+    ]
+    return TracksResponse(tracks=tracks)
+
+
+@app.post("/api/reanalyze", response_model=ReanalyzeResponse)
+async def reanalyze_endpoint(req: ReanalyzeRequest) -> ReanalyzeResponse:
+    db_path = CONFIG_DIR / "tracks.db"
+    track = get_track(db_path, req.filepath)
+    if track is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_found", "message": f"Track not found: {req.filepath}"},
+        )
+    cfg = load_config()
+    upsert_track(db_path, req.filepath)  # resets to 'downloaded'
+    analysis_dir = CONFIG_DIR / "analysis"
+    asyncio.create_task(
+        analyze_audio(
+            Path(req.filepath),
+            db_path=db_path,
+            analysis_dir=analysis_dir,
+            analyzer_url=cfg.analysis.analyzer_url,
+            output_dir=cfg.output_dir,
+        )
+    )
+    return ReanalyzeResponse(status="queued")
