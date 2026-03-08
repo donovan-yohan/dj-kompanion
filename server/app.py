@@ -242,7 +242,6 @@ async def resolve_playlist_endpoint(req: ResolvePlaylistRequest) -> ResolvePlayl
     )
 
 
-
 @app.get("/api/tracks", response_model=TracksResponse)
 async def tracks_endpoint() -> TracksResponse:
     db_path = CONFIG_DIR / "tracks.db"

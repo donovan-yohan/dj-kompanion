@@ -79,9 +79,7 @@ def upsert_track(db_path: Path, filepath: str) -> None:
 
 def get_track(db_path: Path, filepath: str) -> TrackRow | None:
     with _connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT * FROM tracks WHERE filepath = ?", (filepath,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM tracks WHERE filepath = ?", (filepath,)).fetchone()
     return _row_to_track(row) if row else None
 
 
@@ -101,7 +99,6 @@ def mark_analyzed(db_path: Path, filepath: str, analysis_path: str) -> None:
         )
 
 
-
 def mark_failed(db_path: Path, filepath: str, error: str) -> None:
     with _connect(db_path) as conn:
         conn.execute(
@@ -110,18 +107,13 @@ def mark_failed(db_path: Path, filepath: str, error: str) -> None:
         )
 
 
-
 def get_all_tracks(db_path: Path) -> list[TrackRow]:
     with _connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM tracks ORDER BY created_at DESC"
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM tracks ORDER BY created_at DESC").fetchall()
     return [_row_to_track(r) for r in rows]
 
 
 def get_pending_analysis(db_path: Path) -> list[TrackRow]:
     with _connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM tracks WHERE status = 'downloaded'"
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM tracks WHERE status = 'downloaded'").fetchall()
     return [_row_to_track(r) for r in rows]

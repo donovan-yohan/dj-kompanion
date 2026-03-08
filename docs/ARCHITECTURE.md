@@ -20,7 +20,7 @@ Input: a URL from the browser. Output: a downloaded media file with DJ-ready met
 | `server/tagger.py` | File tagging via mutagen, filename sanitization |
 | `server/config.py` | Configuration loading (AppConfig, LLMConfig, AnalysisConfig, MetadataLookupConfig) |
 | `server/metadata_lookup.py` | MusicBrainz + Last.fm search: MetadataCandidate, search_musicbrainz, search_lastfm, search_metadata |
-| `server/analyzer.py` | HTTP client proxying analysis requests to the analyzer container; writes sidecar + SQLite |
+| `server/analyzer.py` | HTTP client proxying analysis requests to the analyzer container; writes sidecar + SQLite + Serato tags |
 | `server/track_db.py` | SQLite track status database: downloaded → analyzing → analyzed |
 | `server/analysis_store.py` | Read/write analysis results as sidecar `.meta.json` files |
 | `server/serato_tags.py` | Serato Markers2 GEOB writer for MP3 hot cue import into VDJ |

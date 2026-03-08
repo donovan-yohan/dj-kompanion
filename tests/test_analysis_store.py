@@ -17,7 +17,9 @@ def _sample_result() -> AnalysisResult:
         beats=[0.234, 0.703],
         downbeats=[0.234, 1.172],
         segments=[
-            SegmentInfo(label="Drop 1 (16 bars)", original_label="chorus", start=60.5, end=90.5, bars=16),
+            SegmentInfo(
+                label="Drop 1 (16 bars)", original_label="chorus", start=60.5, end=90.5, bars=16
+            ),
         ],
     )
 

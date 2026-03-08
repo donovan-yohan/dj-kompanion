@@ -123,7 +123,6 @@ class ResolvePlaylistResponse(BaseModel):
     tracks: list[PlaylistTrack]
 
 
-
 class TrackStatus(BaseModel):
     filepath: str
     status: str

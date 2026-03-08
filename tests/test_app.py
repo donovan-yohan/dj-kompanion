@@ -388,7 +388,6 @@ async def test_resolve_playlist_failure(client: AsyncClient) -> None:
     assert data["error"] == "playlist_resolve_failed"
 
 
-
 async def test_tracks_endpoint(client: AsyncClient) -> None:
     from server.track_db import TrackRow
 

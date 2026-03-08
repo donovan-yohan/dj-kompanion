@@ -26,7 +26,11 @@ class TestMergeConsecutive:
         assert [s.label for s in result] == ["Intro", "Verse", "Chorus"]
 
     def test_non_consecutive_same_type_kept_separate(self) -> None:
-        segments = [_seg("Drop", 0.0, 10.0), _seg("Breakdown", 10.0, 20.0), _seg("Drop", 20.0, 30.0)]
+        segments = [
+            _seg("Drop", 0.0, 10.0),
+            _seg("Breakdown", 10.0, 20.0),
+            _seg("Drop", 20.0, 30.0),
+        ]
         result = _merge_consecutive(segments)
         assert len(result) == 3
         assert [s.label for s in result] == ["Drop", "Breakdown", "Drop"]
