@@ -119,6 +119,7 @@ def write_to_vdj_database(
         poi.set("Name", build_cue_name(seg))
         poi.set("Pos", str(seg.start))
         poi.set("Num", str(i))
+        poi.set("Type", "cue")
 
     # Write back
     tree.write(str(db_path), encoding="UTF-8", xml_declaration=True)

@@ -142,7 +142,7 @@ class TestWriteToVdjDatabase:
         tree = ET.parse(db_path)
         song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
         assert song is not None
-        cues = [p for p in song.findall("Poi") if p.get("Type") is None and p.get("Num")]
+        cues = [p for p in song.findall("Poi") if p.get("Type") == "cue"]
         assert len(cues) == 5  # all 5 segments fit within 8
 
     def test_skips_if_db_missing(self, tmp_path: Path) -> None:
