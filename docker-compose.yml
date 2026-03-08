@@ -6,4 +6,13 @@ services:
       - "9235:9235"
     volumes:
       - ~/Music/DJ Library:/audio:ro
+      - analyzer-cache:/root/.cache
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
     restart: unless-stopped
+
+volumes:
+  analyzer-cache:

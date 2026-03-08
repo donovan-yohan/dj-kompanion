@@ -1,0 +1,48 @@
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+
+WORKDIR /app
+
+# Prevent interactive prompts during apt install
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System deps for audio processing and building native extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    build-essential \
+    libsndfile1 \
+    ffmpeg \
+    git \
+    sshfs \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && python3 -m pip install --upgrade pip
+
+# Install Python deps (pin torch 2.6.0 CUDA 12.1 for NATTEN wheel compatibility)
+COPY requirements.txt .
+RUN pip install --no-cache-dir torch==2.6.0+cu121 torchaudio==2.6.0+cu121 \
+    --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Install NATTEN CUDA wheel (must match torch + CUDA version)
+RUN pip install --no-cache-dir \
+    natten==0.17.5+torch260cu121 \
+    -f https://shi-labs.com/natten/wheels/ \
+    --trusted-host shi-labs.com
+
+# Install madmom from git (broken on pip release for Python 3.11+)
+RUN pip install --no-cache-dir Cython numpy && \
+    pip install --no-cache-dir git+https://github.com/CPJKU/madmom.git
+
+# Install allin1 from git (without its torch dep since we pinned it above)
+RUN pip install --no-cache-dir --no-deps git+https://github.com/hordiales/all-in-one.git && \
+    pip install --no-cache-dir librosa demucs hydra-core omegaconf huggingface_hub matplotlib
+
+# Copy analyzer code as a proper Python package
+COPY . ./analyzer/
+
+EXPOSE 9235
+
+CMD ["uvicorn", "analyzer.app:app", "--host", "0.0.0.0", "--port", "9235"]

@@ -1,0 +1,21 @@
+services:
+  analyzer:
+    build:
+      context: ./analyzer
+      dockerfile: Dockerfile.gpu
+    ports:
+      - "9235:9235"
+    volumes:
+      - /mnt/dj-library:/audio:ro
+      - analyzer-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  analyzer-cache:
