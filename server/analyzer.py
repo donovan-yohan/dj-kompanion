@@ -10,7 +10,9 @@ import httpx
 if TYPE_CHECKING:
     from pathlib import Path
 
+from server.analysis_store import save_analysis
 from server.models import AnalysisResult
+from server.track_db import mark_analyzed, mark_analyzing, mark_failed
 
 logger = logging.getLogger(__name__)
 
@@ -20,19 +22,23 @@ _ANALYZE_TIMEOUT = 600.0
 
 async def analyze_audio(
     filepath: Path,
-    vdj_db_path: Path | None = None,
-    max_cues: int = 8,
+    db_path: Path | None = None,
+    analysis_dir: Path | None = None,
     analyzer_url: str = "http://localhost:9235",
     output_dir: Path | None = None,
 ) -> AnalysisResult | None:
     """Request audio analysis from the analyzer container.
 
     Translates the host filepath to the container's /audio mount path,
-    calls the analyzer service, and optionally writes results to VDJ database.
+    calls the analyzer service, and optionally writes results to a sidecar
+    .meta.json file and updates the SQLite track database.
 
     Returns AnalysisResult on success, None on failure.
     Never raises — all errors are caught and logged.
     """
+    if db_path is not None:
+        mark_analyzing(db_path, str(filepath))
+
     container_path = _to_container_path(filepath, output_dir)
 
     try:
@@ -42,43 +48,50 @@ async def analyze_audio(
                 json={"filepath": container_path},
             )
     except httpx.ConnectError:
-        logger.error(
-            "Cannot reach analyzer service at %s — is the container running? "
-            "(docker compose up -d)",
-            analyzer_url,
+        msg = (
+            f"Cannot reach analyzer service at {analyzer_url} — is the container running? "
+            "(docker compose up -d)"
         )
+        logger.error(msg)
+        if db_path is not None:
+            mark_failed(db_path, str(filepath), msg)
         return None
     except httpx.TimeoutException:
-        logger.error(
-            "Analyzer request timed out after %.0fs — analysis may still be running "
-            "or model download may be in progress",
-            _ANALYZE_TIMEOUT,
+        msg = (
+            f"Analyzer request timed out after {_ANALYZE_TIMEOUT:.0f}s — analysis may still be "
+            "running or model download may be in progress"
         )
+        logger.error(msg)
+        if db_path is not None:
+            mark_failed(db_path, str(filepath), msg)
         return None
     except Exception:
         logger.error("Failed to call analyzer service", exc_info=True)
+        if db_path is not None:
+            mark_failed(db_path, str(filepath), "Failed to call analyzer service")
         return None
 
     if response.status_code != 200:
-        logger.error("Analyzer returned HTTP %d: %s", response.status_code, response.text)
+        msg = f"Analyzer returned HTTP {response.status_code}: {response.text}"
+        logger.error(msg)
+        if db_path is not None:
+            mark_failed(db_path, str(filepath), msg)
         return None
 
     data = response.json()
     if data.get("status") != "ok" or data.get("analysis") is None:
-        logger.error("Analyzer returned error: %s", data.get("message", "unknown"))
+        msg = f"Analyzer returned error: {data.get('message', 'unknown')}"
+        logger.error(msg)
+        if db_path is not None:
+            mark_failed(db_path, str(filepath), msg)
         return None
 
     result = AnalysisResult.model_validate(data["analysis"])
 
-    # VDJ write stays in the main server
-    if vdj_db_path is not None:
-        try:
-            from server.vdj import write_to_vdj_database
-
-            write_to_vdj_database(vdj_db_path, str(filepath), result, max_cues=max_cues)
-            result.vdj_written = True
-        except Exception:
-            logger.warning("Failed to write to VDJ database", exc_info=True)
+    if analysis_dir is not None:
+        out_path = save_analysis(analysis_dir, filepath, result)
+        if db_path is not None:
+            mark_analyzed(db_path, str(filepath), str(out_path))
 
     logger.info(
         "Analysis complete for %s: BPM=%.1f, Key=%s, %d segments",
