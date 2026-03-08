@@ -1,4 +1,4 @@
-import { fetchPreview, healthCheck, requestRetag } from "./api.js";
+import { healthCheck, requestRetag } from "./api.js";
 import { getEl } from "./dom.js";
 import { readQueue, writeQueue } from "./queue-storage.js";
 import type { EnrichedMetadata, QueueItem, RawMetadata } from "./types.js";
@@ -6,6 +6,19 @@ import type { EnrichedMetadata, QueueItem, RawMetadata } from "./types.js";
 let currentUrl = "";
 let initialMetadata: EnrichedMetadata | null = null;
 let previewRaw: RawMetadata | null = null;
+
+function stripPlaylistParams(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube.com") || u.hostname.includes("youtu.be")) {
+      u.searchParams.delete("list");
+      u.searchParams.delete("index");
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -120,6 +133,9 @@ function renderQueueItem(item: QueueItem): string {
   if (item.status === "analyzed" && item.analysis) {
     detail += `<div class="queue-item-analysis">BPM: ${item.analysis.bpm.toFixed(1)} | Key: ${escapeHtml(item.analysis.key_camelot)} | ${item.analysis.segments.length} sections</div>`;
   }
+  if (item.status === "analyzing") {
+    detail = `<div class="queue-item-path">Analyzing... <button class="btn btn-secondary btn-skip-analyze" data-id="${item.id}">Skip</button></div>`;
+  }
   if (item.status === "error" && item.error) {
     detail = `
       <div class="queue-item-error">
@@ -216,6 +232,14 @@ function attachQueueListeners(listEl: HTMLElement): void {
     });
   });
 
+  listEl.querySelectorAll<HTMLButtonElement>(".btn-skip-analyze").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset["id"];
+      if (id) void handleSkipAnalyze(id);
+    });
+  });
+
   listEl.querySelectorAll<HTMLButtonElement>(".btn-save-tags").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -243,6 +267,15 @@ function attachQueueListeners(listEl: HTMLElement): void {
       });
     }
   });
+}
+
+async function handleSkipAnalyze(id: string): Promise<void> {
+  const queue = await readQueue();
+  const idx = queue.findIndex((item) => item.id === id);
+  if (idx !== -1) {
+    queue[idx] = { ...queue[idx], status: "complete" };
+    await writeQueue(queue);
+  }
 }
 
 async function handleRetry(id: string): Promise<void> {
@@ -307,10 +340,8 @@ async function handleFetchMetadata(): Promise<void> {
   showView("loading");
 
   try {
-    const preview = await fetchPreview(currentUrl);
-    populatePreviewForm(preview.enriched, preview.enrichment_source, currentUrl);
-    initialMetadata = { ...preview.enriched };
-    previewRaw = preview.raw;
+    // TODO: fetchPreview removed — popup.ts will be rewritten in Task 6
+    throw new Error("Preview flow removed; use playlist flow instead");
     showView("preview");
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -356,7 +387,7 @@ async function init(): Promise<void> {
   previewRaw = null;
 
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  currentUrl = tabs[0]?.url ?? "";
+  currentUrl = stripPlaylistParams(tabs[0]?.url ?? "");
 
   const isConnected = await healthCheck();
   const statusEl = document.getElementById("server-status");
@@ -382,6 +413,11 @@ async function init(): Promise<void> {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  const versionEl = document.getElementById("ext-version");
+  if (versionEl) {
+    versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
+
   void init();
 
   getEl<HTMLButtonElement>("btn-fetch").addEventListener("click", () => {

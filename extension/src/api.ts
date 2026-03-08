@@ -2,15 +2,29 @@ import { DEFAULT_HOST, DEFAULT_PORT } from "./constants.js";
 import type {
   AnalyzeResponse,
   CookieData,
-  PreviewResponse,
+  ResolvePlaylistResponse,
   RetagRequest,
   RetagResponse,
 } from "./types.js";
 
-export async function getYouTubeCookies(): Promise<CookieData[]> {
+const YT_AUTH_COOKIES = new Set([
+  "SID",
+  "HSID",
+  "SSID",
+  "APISID",
+  "SAPISID",
+  "LOGIN_INFO",
+  "__Secure-1PSID",
+  "__Secure-1PAPISID",
+  "__Secure-3PSID",
+  "__Secure-3PAPISID",
+]);
+
+export async function getYouTubeCookies(authOnly = false): Promise<CookieData[]> {
   try {
     const cookies = await chrome.cookies.getAll({ domain: ".youtube.com" });
-    return cookies.map((c) => ({
+    const filtered = authOnly ? cookies.filter((c) => YT_AUTH_COOKIES.has(c.name)) : cookies;
+    return filtered.map((c) => ({
       domain: c.domain,
       name: c.name,
       value: c.value,
@@ -62,23 +76,23 @@ export async function healthCheck(): Promise<boolean> {
   }
 }
 
-export async function fetchPreview(url: string): Promise<PreviewResponse> {
+export async function resolvePlaylist(url: string): Promise<ResolvePlaylistResponse> {
   const baseUrl = await getBaseUrl();
   const cookies = await getYouTubeCookies();
   const response = await fetchWithTimeout(
-    `${baseUrl}/api/preview`,
+    `${baseUrl}/api/resolve-playlist`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, cookies }),
     },
-    10000
+    60000
   );
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Server error ${response.status}: ${text}`);
   }
-  return (await response.json()) as PreviewResponse;
+  return (await response.json()) as ResolvePlaylistResponse;
 }
 
 export async function requestAnalyze(filepath: string): Promise<AnalyzeResponse> {
@@ -90,7 +104,7 @@ export async function requestAnalyze(filepath: string): Promise<AnalyzeResponse>
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filepath }),
     },
-    300000 // 5 minute timeout — ML analysis is slow
+    900000 // 15 minute timeout — ML analysis is slow, especially first run under emulation
   );
   if (!response.ok) {
     const text = await response.text();

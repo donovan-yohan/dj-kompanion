@@ -22,12 +22,6 @@ export interface EnrichedMetadata {
   comment: string;
 }
 
-export interface PreviewResponse {
-  raw: RawMetadata;
-  enriched: EnrichedMetadata;
-  enrichment_source: "claude" | "none";
-}
-
 export interface CookieData {
   domain: string;
   name: string;
@@ -40,7 +34,7 @@ export interface CookieData {
 export interface DownloadRequest {
   url: string;
   metadata: EnrichedMetadata;
-  raw: RawMetadata;
+  raw: RawMetadata | null;
   format: string;
   user_edited_fields: string[];
   cookies?: CookieData[];
@@ -80,7 +74,7 @@ export interface QueueItem {
   id: string;
   url: string;
   metadata: EnrichedMetadata;
-  raw: RawMetadata;
+  raw: RawMetadata | null;
   format: string;
   userEditedFields: string[];
   status: "pending" | "downloading" | "complete" | "analyzing" | "analyzed" | "error";
@@ -99,4 +93,14 @@ export interface RetagRequest {
 export interface RetagResponse {
   status: string;
   filepath: string;
+}
+
+export interface PlaylistTrack {
+  url: string;
+  title: string;
+}
+
+export interface ResolvePlaylistResponse {
+  playlist_title: string;
+  tracks: PlaylistTrack[];
 }
