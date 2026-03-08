@@ -8,91 +8,29 @@
   </head>
   <body>
     <header>
-      <h1>dj-kompanion</h1>
+      <h1>dj-kompanion <span id="ext-version" class="version-label"></span></h1>
       <span id="server-status" class="status-dot" title="Checking..."></span>
     </header>
 
-    <!-- Fetch button -->
-    <section id="section-fetch">
-      <button id="btn-fetch" class="btn btn-primary" disabled>Fetch from Current URL</button>
+    <!-- Action bar -->
+    <section id="section-actions">
+      <div class="action-bar">
+        <select id="format-select" class="format-select">
+          <option value="m4a">M4A</option>
+          <option value="mp3">MP3</option>
+          <option value="flac">FLAC</option>
+          <option value="ogg">OGG</option>
+        </select>
+        <button id="btn-download" class="btn btn-primary" disabled>Download</button>
+        <button id="btn-download-playlist" class="btn btn-secondary" hidden>Playlist</button>
+      </div>
     </section>
 
-    <!-- Loading state (for metadata fetch) -->
-    <section id="section-loading" hidden>
-      <p class="loading-text">Fetching metadata...</p>
-      <div class="spinner" aria-label="Loading"></div>
-    </section>
-
-    <!-- Preview / Edit state (inline form) -->
-    <section id="section-preview" hidden>
-      <form id="metadata-form" autocomplete="off">
-        <div class="field-row">
-          <label for="field-artist">Artist</label>
-          <input id="field-artist" type="text" />
-        </div>
-        <div class="field-row">
-          <label for="field-title">Title</label>
-          <input id="field-title" type="text" />
-        </div>
-        <div class="field-row">
-          <label for="field-genre">Genre</label>
-          <input id="field-genre" type="text" />
-        </div>
-        <div class="field-row">
-          <label for="field-year">Year</label>
-          <input id="field-year" type="text" inputmode="numeric" />
-        </div>
-        <div class="field-row">
-          <label for="field-label">Label</label>
-          <input id="field-label" type="text" />
-        </div>
-        <div class="field-row">
-          <label for="field-energy">Energy</label>
-          <input id="field-energy" type="text" inputmode="numeric" />
-        </div>
-        <div class="field-row">
-          <label for="field-bpm">BPM</label>
-          <input id="field-bpm" type="text" inputmode="decimal" />
-        </div>
-        <div class="field-row">
-          <label for="field-key">Key</label>
-          <input id="field-key" type="text" />
-        </div>
-        <div class="field-row">
-          <label for="field-comment">Comment</label>
-          <input id="field-comment" type="text" />
-        </div>
-
-        <fieldset class="format-group">
-          <legend>Format</legend>
-          <label class="radio-label">
-            <input type="radio" name="format" value="best" checked /> Best
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="format" value="mp3" /> MP3
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="format" value="flac" /> FLAC
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="format" value="m4a" /> M4A
-          </label>
-        </fieldset>
-
-        <p id="enrichment-source" class="enrichment-info"></p>
-
-        <div class="btn-row">
-          <button id="btn-queue" type="button" class="btn btn-primary">Download</button>
-          <button id="btn-cancel-preview" type="button" class="btn btn-secondary">Cancel</button>
-        </div>
-      </form>
-    </section>
-
-    <!-- Fetch error (shown inline, not a global state) -->
-    <section id="section-fetch-error" hidden>
+    <!-- Error display (reusable) -->
+    <section id="section-error" hidden>
       <p class="error-heading">&#10007; Error</p>
-      <p id="fetch-error-message" class="error-message"></p>
-      <button id="btn-retry-fetch" class="btn btn-secondary">Try Again</button>
+      <p id="error-message" class="error-message"></p>
+      <button id="btn-dismiss-error" class="btn btn-secondary">Dismiss</button>
     </section>
 
     <!-- Queue list -->
