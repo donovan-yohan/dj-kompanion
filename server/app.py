@@ -182,8 +182,21 @@ async def download(req: DownloadRequest) -> DownloadResponse:
             },
         ) from e
 
-    # Analysis is triggered by the extension via POST /api/analyze after download completes.
-    # This avoids duplicate ML pipeline runs.
+    # Insert track into SQLite and fire analysis in background
+    db_path = CONFIG_DIR / "tracks.db"
+    upsert_track(db_path, str(final_path))
+
+    if cfg.analysis.enabled:
+        analysis_dir = CONFIG_DIR / "analysis"
+        asyncio.create_task(
+            analyze_audio(
+                final_path,
+                db_path=db_path,
+                analysis_dir=analysis_dir,
+                analyzer_url=cfg.analysis.analyzer_url,
+                output_dir=cfg.output_dir,
+            )
+        )
 
     return DownloadResponse(
         status="complete",

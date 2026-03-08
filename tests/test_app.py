@@ -71,6 +71,8 @@ async def test_download_success(client: AsyncClient) -> None:
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path),
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -147,6 +149,8 @@ async def test_download_with_claude_enrichment(client: AsyncClient) -> None:
         patch(
             "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
         ),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -177,6 +181,8 @@ async def test_download_with_api_and_claude_enrichment(client: AsyncClient) -> N
         patch(
             "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
         ),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -200,6 +206,8 @@ async def test_download_claude_fails_gracefully(client: AsyncClient) -> None:
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
         patch("server.app.search_metadata", new_callable=AsyncMock, return_value=[]),
         patch("server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=None),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -228,6 +236,8 @@ async def test_download_user_edited_fields_preserved(client: AsyncClient) -> Non
         patch(
             "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=claude_enriched
         ),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -255,6 +265,8 @@ async def test_download_without_raw_extracts_metadata(client: AsyncClient) -> No
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path),
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -512,3 +524,27 @@ async def test_reanalyze_success(client: AsyncClient) -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "queued"
+
+
+async def test_download_inserts_track_and_fires_analysis(client: AsyncClient) -> None:
+    mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
+    with (
+        patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
+        patch("server.app.tag_file", return_value=mock_path),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
+        patch("server.app.upsert_track") as mock_upsert,
+        patch("server.app.analyze_audio", new_callable=AsyncMock) as mock_analyze,
+    ):
+        response = await client.post(
+            "/api/download",
+            json={
+                "url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
+                "metadata": {"artist": "DJ Snake", "title": "Turn Down for What"},
+                "raw": SAMPLE_RAW_DICT,
+                "format": "best",
+            },
+        )
+    assert response.status_code == 200
+    mock_upsert.assert_called_once()
+    # analyze_audio is called to create the coroutine passed to asyncio.create_task
+    mock_analyze.assert_called_once()
