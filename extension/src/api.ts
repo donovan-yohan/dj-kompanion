@@ -5,6 +5,8 @@ import type {
   ResolvePlaylistResponse,
   RetagRequest,
   RetagResponse,
+  SyncVdjResponse,
+  TracksResponse,
 } from "./types.js";
 
 const YT_AUTH_COOKIES = new Set([
@@ -111,6 +113,38 @@ export async function requestAnalyze(filepath: string): Promise<AnalyzeResponse>
     throw new Error(`Server error ${response.status}: ${text}`);
   }
   return (await response.json()) as AnalyzeResponse;
+}
+
+export async function fetchTracks(): Promise<TracksResponse> {
+  const baseUrl = await getBaseUrl();
+  const response = await fetchWithTimeout(`${baseUrl}/api/tracks`, {}, 10000);
+  if (!response.ok) throw new Error(`Server error ${response.status}`);
+  return (await response.json()) as TracksResponse;
+}
+
+export async function requestSyncVdj(): Promise<SyncVdjResponse> {
+  const baseUrl = await getBaseUrl();
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/sync-vdj`,
+    { method: "POST", headers: { "Content-Type": "application/json" } },
+    30000
+  );
+  if (!response.ok) throw new Error(`Server error ${response.status}`);
+  return (await response.json()) as SyncVdjResponse;
+}
+
+export async function requestReanalyze(filepath: string): Promise<void> {
+  const baseUrl = await getBaseUrl();
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/reanalyze`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filepath }),
+    },
+    10000
+  );
+  if (!response.ok) throw new Error(`Server error ${response.status}`);
 }
 
 export async function requestRetag(req: RetagRequest): Promise<RetagResponse> {

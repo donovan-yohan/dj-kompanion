@@ -335,3 +335,23 @@ section {
   padding: 0;
   border-top: 1px solid var(--border);
 }
+
+/* Sync footer */
+footer {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+footer .btn {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.sync-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex: 1;
+}
