@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from mutagen.flac import FLAC
-from mutagen.id3 import COMM, TBPM, TCON, TDRC, TIT2, TKEY, TPE1, TPUB, TXXX
+from mutagen.id3 import COMM, TALB, TBPM, TCON, TDRC, TIT2, TKEY, TPE1, TPUB, TXXX
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4, MP4FreeForm
 from mutagen.oggvorbis import OggVorbis
@@ -78,6 +78,8 @@ def _tag_mp3(filepath: Path, metadata: EnrichedMetadata) -> None:
 
     tags.add(TPE1(encoding=3, text=metadata.artist))
     tags.add(TIT2(encoding=3, text=metadata.title))
+    if metadata.album is not None:
+        tags.add(TALB(encoding=3, text=metadata.album))
     if metadata.genre is not None:
         tags.add(TCON(encoding=3, text=metadata.genre))
     if metadata.year is not None:
@@ -107,6 +109,8 @@ def _tag_vorbis(filepath: Path, metadata: EnrichedMetadata, *, is_flac: bool) ->
 
     audio["ARTIST"] = val(metadata.artist)
     audio["TITLE"] = val(metadata.title)
+    if metadata.album is not None:
+        audio["ALBUM"] = val(metadata.album)
     if metadata.genre is not None:
         audio["GENRE"] = val(metadata.genre)
     if metadata.year is not None:
@@ -128,6 +132,8 @@ def _tag_m4a(filepath: Path, metadata: EnrichedMetadata) -> None:
     audio: Any = MP4(filepath)
     audio["\xa9ART"] = [metadata.artist]
     audio["\xa9nam"] = [metadata.title]
+    if metadata.album is not None:
+        audio["\xa9alb"] = [metadata.album]
     if metadata.genre is not None:
         audio["\xa9gen"] = [metadata.genre]
     if metadata.year is not None:
@@ -197,6 +203,7 @@ def _read_mp3(filepath: Path) -> EnrichedMetadata:
     return EnrichedMetadata(
         artist=artist,
         title=title_val,
+        album=get_text("TALB"),
         genre=get_text("TCON"),
         year=_safe_int(year_str),
         label=get_text("TPUB"),
@@ -214,6 +221,7 @@ def _read_vorbis(filepath: Path, *, is_flac: bool) -> EnrichedMetadata:
     return EnrichedMetadata(
         artist=_first_vorbis_tag(audio, "ARTIST") or "",
         title=_first_vorbis_tag(audio, "TITLE") or "",
+        album=_first_vorbis_tag(audio, "ALBUM"),
         genre=_first_vorbis_tag(audio, "GENRE"),
         year=_safe_int(_first_vorbis_tag(audio, "DATE")),
         label=_first_vorbis_tag(audio, "LABEL"),
@@ -248,6 +256,7 @@ def _read_m4a(filepath: Path) -> EnrichedMetadata:
     return EnrichedMetadata(
         artist=get_str("\xa9ART") or "",
         title=get_str("\xa9nam") or "",
+        album=get_str("\xa9alb"),
         genre=get_str("\xa9gen"),
         year=_safe_int(get_str("\xa9day")),
         label=get_freeform("----:com.apple.iTunes:LABEL"),
