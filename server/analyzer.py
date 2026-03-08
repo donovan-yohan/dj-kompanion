@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 from server.analysis_store import save_analysis
 from server.models import AnalysisResult
+from server.serato_tags import write_serato_cues
 from server.track_db import mark_analyzed, mark_analyzing, mark_failed
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,13 @@ async def analyze_audio(
 
     if analysis_dir is not None:
         out_path = save_analysis(analysis_dir, filepath, result)
+
+        # Write Serato GEOB tags for VDJ auto-import (best-effort)
+        try:
+            write_serato_cues(filepath, result)
+        except Exception:
+            logger.warning("Serato tag write failed for %s", filepath, exc_info=True)
+
         if db_path is not None:
             mark_analyzed(db_path, str(filepath), str(out_path))
 

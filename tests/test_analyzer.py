@@ -140,6 +140,31 @@ async def test_analyze_writes_sidecar_and_updates_db(tmp_path: Path) -> None:
     assert track.analysis_path is not None
 
 
+async def test_analyze_calls_serato_writer(tmp_path: Path) -> None:
+    """After successful analysis, write_serato_cues should be called."""
+    filepath = Path("/Users/me/Music/DJ Library/track.mp3")
+
+    mock_response = httpx.Response(200, json=SAMPLE_ANALYSIS_JSON)
+    with patch("server.analyzer.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        with patch("server.analyzer.write_serato_cues") as mock_serato:
+            mock_serato.return_value = True
+            result = await analyze_audio(
+                filepath,
+                output_dir=Path("/Users/me/Music/DJ Library"),
+            )
+
+            assert result is not None
+            mock_serato.assert_called_once()
+            call_args = mock_serato.call_args
+            assert call_args[0][0] == filepath
+
+
 async def test_analyze_marks_failed_on_error(tmp_path: Path) -> None:
     db_path = tmp_path / "tracks.db"
     audio_path = Path("/Users/me/Music/DJ Library/track.m4a")
