@@ -62,12 +62,6 @@ export interface AnalysisResult {
   beats: number[];
   downbeats: number[];
   segments: SegmentInfo[];
-  vdj_written: boolean;
-}
-
-export interface AnalyzeResponse {
-  status: string;
-  analysis: AnalysisResult;
 }
 
 export interface QueueItem {

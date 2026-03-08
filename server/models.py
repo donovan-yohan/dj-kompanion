@@ -106,17 +106,6 @@ class AnalysisResult(BaseModel):
     beats: list[float]
     downbeats: list[float]
     segments: list[SegmentInfo]
-    vdj_written: bool = False
-
-
-class AnalyzeRequest(BaseModel):
-    filepath: str
-
-
-class AnalyzeResponse(BaseModel):
-    status: str
-    analysis: AnalysisResult
-    message: str | None = None
 
 
 class PlaylistTrack(BaseModel):
