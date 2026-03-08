@@ -6,7 +6,8 @@ A personal convenience tool wrapping yt-dlp with a Chrome extension and local se
 
 | Action | Command |
 |--------|---------|
-| Start analyzer | `docker compose up -d` |
+| Start analyzer (CPU) | `docker compose up -d` |
+| Start analyzer (GPU) | `docker compose -f docker-compose.gpu.yml up -d` |
 | Server dev | `uv run uvicorn server.app:app --reload --port 9234` |
 | Type check (Python) | `uv run mypy server/` |
 | Lint + format (Python) | `uv run ruff check . && uv run ruff format .` |

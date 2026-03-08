@@ -8,6 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # System deps for audio processing and building native extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
+    python3.11-dev \
     python3.11-venv \
     python3-pip \
     build-essential \
@@ -20,25 +21,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -sf /usr/bin/python3.11 /usr/bin/python \
     && python3 -m pip install --upgrade pip
 
-# Install Python deps (pin torch 2.6.0 CUDA 12.1 for NATTEN wheel compatibility)
+# Install Python deps (pin torch 2.5.1 CUDA 12.1 for NATTEN wheel compatibility)
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch==2.6.0+cu121 torchaudio==2.6.0+cu121 \
+RUN pip install --no-cache-dir torch==2.5.1+cu121 torchaudio==2.5.1+cu121 \
     --index-url https://download.pytorch.org/whl/cu121 && \
     pip install --no-cache-dir -r requirements.txt
 
 # Install NATTEN CUDA wheel (must match torch + CUDA version)
 RUN pip install --no-cache-dir \
-    natten==0.17.5+torch260cu121 \
-    -f https://shi-labs.com/natten/wheels/ \
-    --trusted-host shi-labs.com
+    natten==0.17.5+torch250cu121 \
+    -f https://whl.natten.org
 
-# Install madmom from git (broken on pip release for Python 3.11+)
+# Install madmom from vendored source (broken on pip release for Python 3.11+)
+COPY vendor/madmom /tmp/madmom
 RUN pip install --no-cache-dir Cython numpy && \
-    pip install --no-cache-dir git+https://github.com/CPJKU/madmom.git
+    pip install --no-cache-dir /tmp/madmom && \
+    rm -rf /tmp/madmom
 
-# Install allin1 from git (without its torch dep since we pinned it above)
-RUN pip install --no-cache-dir --no-deps git+https://github.com/hordiales/all-in-one.git && \
-    pip install --no-cache-dir librosa demucs hydra-core omegaconf huggingface_hub matplotlib
+# Install allin1 from vendored source (without its torch dep since we pinned it above)
+COPY vendor/all-in-one /tmp/all-in-one
+RUN pip install --no-cache-dir --no-deps /tmp/all-in-one && \
+    pip install --no-cache-dir librosa demucs hydra-core omegaconf huggingface_hub matplotlib && \
+    rm -rf /tmp/all-in-one
 
 # Copy analyzer code as a proper Python package
 COPY . ./analyzer/

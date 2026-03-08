@@ -15,6 +15,9 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
     restart: unless-stopped
 
 volumes:

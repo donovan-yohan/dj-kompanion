@@ -1,0 +1,6 @@
+[submodule "analyzer/vendor/all-in-one"]
+	path = analyzer/vendor/all-in-one
+	url = https://github.com/hordiales/all-in-one.git
+[submodule "analyzer/vendor/madmom"]
+	path = analyzer/vendor/madmom
+	url = https://github.com/CPJKU/madmom.git
