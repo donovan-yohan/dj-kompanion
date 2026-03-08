@@ -1,6 +1,6 @@
 # Decoupled Analysis & VDJ Sync
 
-> **Status**: Active | **Created**: 2026-03-08 | **Last Updated**: 2026-03-08
+> **Status**: Complete | **Created**: 2026-03-08 | **Last Updated**: 2026-03-08
 > **Design Doc**: `docs/design-docs/2026-03-08-decoupled-analysis-vdj-sync-design.md`
 > **For Claude:** Use /harness:orchestrate to execute this plan.
 
@@ -17,22 +17,27 @@
 
 ## Progress
 
-- [ ] Task 1: SQLite track database module
-- [ ] Task 2: Analysis sidecar writer
-- [ ] Task 3: Refactor analyzer.py to use track_db + sidecar
-- [ ] Task 4: VDJ sync module
-- [ ] Task 5: New API endpoints (sync-vdj, tracks, reanalyze)
-- [ ] Task 6: Refactor download endpoint for fire-and-forget analysis
-- [ ] Task 7: Extension — sync button + track status display
-- [ ] Task 8: Remove old direct-VDJ-write codepath
+- [x] Task 1: SQLite track database module _(completed 2026-03-08)_
+- [x] Task 2: Analysis sidecar writer _(completed 2026-03-08)_
+- [x] Task 3: Refactor analyzer.py to use track_db + sidecar _(completed 2026-03-08)_
+- [x] Task 4: VDJ sync module _(completed 2026-03-08)_
+- [x] Task 5: New API endpoints (sync-vdj, tracks, reanalyze) _(completed 2026-03-08)_
+- [x] Task 6: Refactor download endpoint for fire-and-forget analysis _(completed 2026-03-08)_
+- [x] Task 7: Extension — sync button + track status display _(completed 2026-03-08)_
+- [x] Task 8: Remove old direct-VDJ-write codepath _(completed 2026-03-08)_
 
 ## Surprises & Discoveries
 
-_None yet — updated during execution by /harness:orchestrate._
+| Date | What | Impact | Resolution |
+|------|------|--------|------------|
+| 2026-03-08 | sidecar_path() filesystem check doesn't work pre-write | Collision detection was non-deterministic | Always include hash suffix in filename |
 
 ## Plan Drift
 
-_None yet — updated when tasks deviate from plan during execution._
+| Task | Plan Said | Actually Did | Why |
+|------|-----------|--------------|-----|
+| Task 1 | `timezone.utc` | `datetime.UTC` | ruff UP017 requires newer alias |
+| Task 2 | `sidecar_path` uses `candidate.exists()` for collision check | Always appends `_{hash}` suffix | Filesystem check fails when file doesn't exist yet; deterministic naming is better |
 
 ---
 
