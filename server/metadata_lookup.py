@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -10,6 +11,8 @@ if TYPE_CHECKING:
 
 import musicbrainzngs  # type: ignore[import-untyped]
 import pylast
+
+logging.getLogger("musicbrainzngs").setLevel(logging.WARNING)
 
 _REMIX_RE = re.compile(
     r"\(([^)]+?)\s+(remix|edit|bootleg|vip|flip)\)",

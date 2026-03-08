@@ -90,7 +90,6 @@ def _extract_metadata_sync(url: str, cookies: list[CookieItem] | None = None) ->
 async def extract_metadata(url: str, cookies: list[CookieItem] | None = None) -> RawMetadata:
     """Extract metadata from URL without downloading.
 
-    Used for the preview step.
     Raises DownloadError on failure.
     """
     return await asyncio.to_thread(_extract_metadata_sync, url, cookies)
