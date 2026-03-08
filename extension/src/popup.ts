@@ -366,7 +366,9 @@ async function handleSyncVdj(): Promise<void> {
     if (result.refused) {
       if (statusEl) statusEl.textContent = "VDJ is running — close it first";
     } else {
-      if (statusEl) statusEl.textContent = `Synced ${result.synced}, skipped ${result.skipped}`;
+      const errorSuffix = result.errors.length > 0 ? `, ${result.errors.length} error(s)` : "";
+      if (statusEl)
+        statusEl.textContent = `Synced ${result.synced}, skipped ${result.skipped}${errorSuffix}`;
     }
   } catch (err) {
     if (statusEl) statusEl.textContent = err instanceof Error ? err.message : String(err);

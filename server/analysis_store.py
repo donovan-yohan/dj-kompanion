@@ -38,8 +38,12 @@ def save_analysis(analysis_dir: Path, audio_path: Path, result: AnalysisResult) 
 
 
 def load_analysis(path: Path) -> AnalysisResult | None:
-    """Load analysis result from a .meta.json file. Returns None if file doesn't exist."""
+    """Load analysis result from a .meta.json file. Returns None if missing or corrupt."""
     if not path.exists():
         return None
-    data = json.loads(path.read_text())
-    return AnalysisResult.model_validate(data)
+    try:
+        data = json.loads(path.read_text())
+        return AnalysisResult.model_validate(data)
+    except (json.JSONDecodeError, Exception):
+        logger.warning("Failed to load analysis from %s", path, exc_info=True)
+        return None

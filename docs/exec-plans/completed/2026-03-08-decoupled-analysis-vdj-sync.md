@@ -1,6 +1,6 @@
 # Decoupled Analysis & VDJ Sync
 
-> **Status**: Complete | **Created**: 2026-03-08 | **Last Updated**: 2026-03-08
+> **Status**: Completed | **Created**: 2026-03-08 | **Completed**: 2026-03-08
 > **Design Doc**: `docs/design-docs/2026-03-08-decoupled-analysis-vdj-sync-design.md`
 > **For Claude:** Use /harness:orchestrate to execute this plan.
 
@@ -993,13 +993,20 @@ git commit -m "refactor: remove old direct-VDJ-write codepath"
 
 ## Outcomes & Retrospective
 
-_Filled by /harness:complete when work is done._
+8/8 tasks completed. 10 commits, 21 files changed, +1008/-214 lines. 192 tests pass.
 
 **What worked:**
--
+- Parallel task dispatch (Tasks 1+2, 3+4, 6+7) cut wall-clock time significantly
+- Detailed worker prompts with full code from the plan meant zero back-and-forth
+- Living plan updates after each batch kept coordination clean
+- TDD approach caught issues early (sidecar_path collision detection)
 
 **What didn't:**
--
+- Workers 7 and 8 both did Task 8 cleanup work (race condition on the final task)
+- Some test warnings about unawaited coroutines from `asyncio.create_task` patching — harmless but noisy
+- mypy errors from old `/api/analyze` endpoint persisted through Tasks 3-7 until Task 8 cleaned it up
 
 **Learnings to codify:**
--
+- Filesystem existence checks don't work for collision detection before writing files — use deterministic hashing
+- When refactoring function signatures, callers in the same codebase may break — plan cleanup tasks to run last
+- VDJ database.xml: only modify existing Song entries, never create new ones; use CRLF + double-quote XML decl
