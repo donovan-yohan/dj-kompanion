@@ -15,3 +15,4 @@
 | [2026-02-28-dockerized-analyzer-design.md](2026-02-28-dockerized-analyzer-design.md) | Dockerized analysis microservice for macOS ARM64 compatibility | 2026-02-28 |
 | [2026-02-28-metadata-api-enrichment-design.md](2026-02-28-metadata-api-enrichment-design.md) | MusicBrainz + Last.fm API lookup with LLM disambiguation | 2026-02-28 |
 | [2026-03-08-decoupled-analysis-vdj-sync-design.md](2026-03-08-decoupled-analysis-vdj-sync-design.md) | Decoupled analysis with sidecar JSON + manual VDJ sync | 2026-03-08 |
+| [2026-03-08-serato-tag-cues-design.md](2026-03-08-serato-tag-cues-design.md) | Serato GEOB cue tags with section merging, replacing VDJ database.xml sync | 2026-03-08 |

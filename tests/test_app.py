@@ -388,31 +388,6 @@ async def test_resolve_playlist_failure(client: AsyncClient) -> None:
     assert data["error"] == "playlist_resolve_failed"
 
 
-async def test_sync_vdj_endpoint(client: AsyncClient) -> None:
-    from server.vdj_sync import SyncResult
-
-    mock_result = SyncResult(synced=2, skipped=1, errors=[], refused=False)
-    with patch("server.app.sync_vdj", return_value=mock_result):
-        response = await client.post("/api/sync-vdj")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["synced"] == 2
-    assert data["skipped"] == 1
-    assert data["refused"] is False
-    assert data["status"] == "ok"
-
-
-async def test_sync_vdj_refused(client: AsyncClient) -> None:
-    from server.vdj_sync import SyncResult
-
-    mock_result = SyncResult(synced=0, skipped=0, errors=[], refused=True)
-    with patch("server.app.sync_vdj", return_value=mock_result):
-        response = await client.post("/api/sync-vdj")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["refused"] is True
-    assert data["status"] == "refused"
-
 
 async def test_tracks_endpoint(client: AsyncClient) -> None:
     from server.track_db import TrackRow
@@ -425,7 +400,6 @@ async def test_tracks_endpoint(client: AsyncClient) -> None:
             status="analyzed",
             error=None,
             analyzed_at="2026-01-01T00:00:00",
-            synced_at=None,
             created_at="2026-01-01T00:00:00",
         ),
     ]
@@ -464,7 +438,6 @@ async def test_reanalyze_success(client: AsyncClient) -> None:
         status="failed",
         error="previous error",
         analyzed_at=None,
-        synced_at=None,
         created_at="2026-01-01T00:00:00",
     )
     with (

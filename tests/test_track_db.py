@@ -7,12 +7,10 @@ from typing import TYPE_CHECKING
 from server.track_db import (
     get_pending_analysis,
     get_track,
-    get_unsynced,
     init_db,
     mark_analyzed,
     mark_analyzing,
     mark_failed,
-    mark_synced,
     upsert_track,
 )
 
@@ -67,11 +65,6 @@ class TestStatusTransitions:
         assert track.analysis_path == "/config/analysis/song.meta.json"
         assert track.analyzed_at is not None
 
-        mark_synced(db_path, "/path/to/song.m4a")
-        track = get_track(db_path, "/path/to/song.m4a")
-        assert track.status == "synced"
-        assert track.synced_at is not None
-
     def test_mark_failed(self, tmp_path: Path) -> None:
         db_path = tmp_path / "tracks.db"
         init_db(db_path)
@@ -83,19 +76,6 @@ class TestStatusTransitions:
 
 
 class TestQueries:
-    def test_get_unsynced(self, tmp_path: Path) -> None:
-        db_path = tmp_path / "tracks.db"
-        init_db(db_path)
-        upsert_track(db_path, "/a.m4a")
-        upsert_track(db_path, "/b.m4a")
-        upsert_track(db_path, "/c.m4a")
-        mark_analyzed(db_path, "/a.m4a", "/analysis/a.meta.json")
-        mark_analyzed(db_path, "/b.m4a", "/analysis/b.meta.json")
-        # /c.m4a stays as "downloaded"
-        unsynced = get_unsynced(db_path)
-        assert len(unsynced) == 2
-        assert {t.filepath for t in unsynced} == {"/a.m4a", "/b.m4a"}
-
     def test_get_pending_analysis(self, tmp_path: Path) -> None:
         db_path = tmp_path / "tracks.db"
         init_db(db_path)

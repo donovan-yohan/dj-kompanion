@@ -27,13 +27,11 @@ from server.models import (
     ResolvePlaylistResponse,
     RetagRequest,
     RetagResponse,
-    SyncVdjResponse,
     TracksResponse,
     TrackStatus,
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
 from server.track_db import get_all_tracks, get_track, init_db, upsert_track
-from server.vdj_sync import sync_vdj
 
 logger = logging.getLogger(__name__)
 
@@ -244,19 +242,6 @@ async def resolve_playlist_endpoint(req: ResolvePlaylistRequest) -> ResolvePlayl
     )
 
 
-@app.post("/api/sync-vdj", response_model=SyncVdjResponse)
-async def sync_vdj_endpoint() -> SyncVdjResponse:
-    cfg = load_config()
-    db_path = CONFIG_DIR / "tracks.db"
-    result = sync_vdj(db_path, cfg.analysis.vdj_database, max_cues=cfg.analysis.max_cues)
-    return SyncVdjResponse(
-        status="refused" if result.refused else "ok",
-        synced=result.synced,
-        skipped=result.skipped,
-        errors=result.errors,
-        refused=result.refused,
-    )
-
 
 @app.get("/api/tracks", response_model=TracksResponse)
 async def tracks_endpoint() -> TracksResponse:
@@ -269,7 +254,6 @@ async def tracks_endpoint() -> TracksResponse:
             analysis_path=r.analysis_path,
             error=r.error,
             analyzed_at=r.analyzed_at,
-            synced_at=r.synced_at,
         )
         for r in rows
     ]

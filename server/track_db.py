@@ -19,7 +19,6 @@ class TrackRow:
     status: str
     error: str | None
     analyzed_at: str | None
-    synced_at: str | None
     created_at: str
 
 
@@ -31,7 +30,6 @@ CREATE TABLE IF NOT EXISTS tracks (
     status TEXT NOT NULL DEFAULT 'downloaded',
     error TEXT,
     analyzed_at TEXT,
-    synced_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )
 """
@@ -46,7 +44,7 @@ def _now() -> str:
 
 
 def _row_to_track(
-    row: tuple[int, str, str | None, str, str | None, str | None, str | None, str],
+    row: tuple[int, str, str | None, str, str | None, str | None, str],
 ) -> TrackRow:
     return TrackRow(
         id=row[0],
@@ -55,8 +53,7 @@ def _row_to_track(
         status=row[3],
         error=row[4],
         analyzed_at=row[5],
-        synced_at=row[6],
-        created_at=row[7],
+        created_at=row[6],
     )
 
 
@@ -69,14 +66,13 @@ def init_db(db_path: Path) -> None:
 def upsert_track(db_path: Path, filepath: str) -> None:
     with _connect(db_path) as conn:
         conn.execute(
-            """INSERT INTO tracks (filepath, status, error, analysis_path, analyzed_at, synced_at, created_at)
-               VALUES (?, 'downloaded', NULL, NULL, NULL, NULL, ?)
+            """INSERT INTO tracks (filepath, status, error, analysis_path, analyzed_at, created_at)
+               VALUES (?, 'downloaded', NULL, NULL, NULL, ?)
                ON CONFLICT(filepath) DO UPDATE SET
                  status = 'downloaded',
                  error = NULL,
                  analysis_path = NULL,
-                 analyzed_at = NULL,
-                 synced_at = NULL""",
+                 analyzed_at = NULL""",
             (filepath, _now()),
         )
 
@@ -105,13 +101,6 @@ def mark_analyzed(db_path: Path, filepath: str, analysis_path: str) -> None:
         )
 
 
-def mark_synced(db_path: Path, filepath: str) -> None:
-    with _connect(db_path) as conn:
-        conn.execute(
-            "UPDATE tracks SET status = 'synced', synced_at = ? WHERE filepath = ?",
-            (_now(), filepath),
-        )
-
 
 def mark_failed(db_path: Path, filepath: str, error: str) -> None:
     with _connect(db_path) as conn:
@@ -120,13 +109,6 @@ def mark_failed(db_path: Path, filepath: str, error: str) -> None:
             (error, filepath),
         )
 
-
-def get_unsynced(db_path: Path) -> list[TrackRow]:
-    with _connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM tracks WHERE status = 'analyzed'"
-        ).fetchall()
-    return [_row_to_track(r) for r in rows]
 
 
 def get_all_tracks(db_path: Path) -> list[TrackRow]:

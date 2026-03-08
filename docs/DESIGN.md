@@ -39,6 +39,10 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 | Decoupled analysis from VDJ | Analysis writes sidecar `.meta.json` files; VDJ database.xml only touched during explicit sync step. Prevents corruption from concurrent writes. | Decoupled analysis design |
 | SQLite for track status | Lean tracker (`tracks.db`) for download→analysis→sync pipeline. Single table, status column as state machine. | Decoupled analysis design |
 | VDJ safety check on sync | Sync refuses to write if VDJ process is running. Only writes to songs VDJ has already scanned. | Decoupled analysis design |
+| Serato GEOB tags for cues | Write cue points as Serato Markers2 GEOB frames in MP3 files. VDJ reads them automatically on scan via `getCuesFromTags`. Replaces database.xml sync entirely. | Serato tag cues design |
+| MP3 as default format | Serato GEOB tags are well-documented and reliable for MP3; M4A has known issues. MP3 320kbps is transparent for DJ use. | Serato tag cues design |
+| Section merging over numbering | Consecutive same-type sections merged into one cue (summed bars) instead of numbered separately. Produces transition-focused cues. | Serato tag cues design |
+| No hard cue limit | Every merged section transition becomes a cue. hotcues XT plugin provides page navigation in VDJ. | Serato tag cues design |
 
 ## Deep Docs
 
@@ -50,6 +54,7 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 | `design-docs/2026-02-27-audio-post-processing-design.md` | ML audio analysis pipeline design |
 | `design-docs/2026-02-28-metadata-api-enrichment-design.md` | MusicBrainz + Last.fm API lookup with LLM disambiguation |
 | `design-docs/2026-03-08-decoupled-analysis-vdj-sync-design.md` | Decoupled analysis with sidecar JSON + manual VDJ sync |
+| `design-docs/2026-03-08-serato-tag-cues-design.md` | Serato GEOB cue tags with section merging |
 
 ## See Also
 

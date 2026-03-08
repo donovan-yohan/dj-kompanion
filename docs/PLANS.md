@@ -10,7 +10,9 @@ Execution plans for active and completed work.
 
 ## Active Plans
 
-_None_
+| Plan | Created |
+|------|---------|
+| [Serato Tag Cues](exec-plans/active/2026-03-08-serato-tag-cues.md) | 2026-03-08 |
 
 ## Completed Plans
 
