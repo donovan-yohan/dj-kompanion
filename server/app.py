@@ -17,8 +17,6 @@ from server.enrichment import basic_enrich, is_claude_available, merge_metadata,
 from server.logging_config import setup_logging
 from server.metadata_lookup import MetadataCandidate, search_metadata
 from server.models import (
-    AnalyzeRequest,
-    AnalyzeResponse,
     DownloadRequest,
     DownloadResponse,
     HealthResponse,
@@ -228,34 +226,6 @@ async def retag(req: RetagRequest) -> RetagResponse:
         ) from e
 
     return RetagResponse(status="ok", filepath=str(final_path))
-
-
-@app.post("/api/analyze", response_model=AnalyzeResponse)
-async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
-    filepath = Path(req.filepath)
-    if not filepath.exists():
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "file_not_found", "message": f"File not found: {req.filepath}"},
-        )
-
-    cfg = load_config()
-    vdj_path = cfg.analysis.vdj_database if cfg.analysis.enabled else None
-    result = await analyze_audio(
-        filepath,
-        vdj_db_path=vdj_path,
-        max_cues=cfg.analysis.max_cues,
-        analyzer_url=cfg.analysis.analyzer_url,
-        output_dir=cfg.output_dir,
-    )
-
-    if result is None:
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "analysis_failed", "message": "Audio analysis failed"},
-        )
-
-    return AnalyzeResponse(status="ok", analysis=result)
 
 
 @app.post("/api/resolve-playlist", response_model=ResolvePlaylistResponse)

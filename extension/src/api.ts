@@ -1,6 +1,5 @@
 import { DEFAULT_HOST, DEFAULT_PORT } from "./constants.js";
 import type {
-  AnalyzeResponse,
   CookieData,
   ResolvePlaylistResponse,
   RetagRequest,
@@ -95,24 +94,6 @@ export async function resolvePlaylist(url: string): Promise<ResolvePlaylistRespo
     throw new Error(`Server error ${response.status}: ${text}`);
   }
   return (await response.json()) as ResolvePlaylistResponse;
-}
-
-export async function requestAnalyze(filepath: string): Promise<AnalyzeResponse> {
-  const baseUrl = await getBaseUrl();
-  const response = await fetchWithTimeout(
-    `${baseUrl}/api/analyze`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filepath }),
-    },
-    900000 // 15 minute timeout — ML analysis is slow, especially first run under emulation
-  );
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Server error ${response.status}: ${text}`);
-  }
-  return (await response.json()) as AnalyzeResponse;
 }
 
 export async function fetchTracks(): Promise<TracksResponse> {
