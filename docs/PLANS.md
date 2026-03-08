@@ -9,7 +9,9 @@ Execution plans for active and completed work.
 
 ## Active Plans
 
-_None_
+| Plan | Created | Status |
+|------|---------|--------|
+| [Decoupled Analysis & VDJ Sync](exec-plans/active/2026-03-08-decoupled-analysis-vdj-sync.md) | 2026-03-08 | Active |
 
 ## Completed Plans
 

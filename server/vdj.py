@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 import xml.etree.ElementTree as ET
+from io import BytesIO
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -90,27 +92,17 @@ def write_to_vdj_database(
 
     root = tree.getroot()
 
-    # Find or create Song element (iterate to avoid XPath injection from quotes in filepath)
+    # Find existing Song element — only modify songs VDJ has already scanned.
+    # Creating a new Song entry before VDJ's own scan causes database corruption.
     song = next((s for s in root.findall("Song") if s.get("FilePath") == filepath), None)
     if song is None:
-        song = ET.SubElement(root, "Song")
-        song.set("FilePath", filepath)
-    else:
-        # Clear existing auto-generated POIs and Scan
-        for child in list(song):
+        logger.info("Song not yet in VDJ database, skipping cue write for %s", filepath)
+        return
+
+    # Remove only our cue POIs (Type="cue") — leave VDJ's own elements untouched
+    for child in list(song):
+        if child.tag == "Poi" and child.get("Type") == "cue":
             song.remove(child)
-
-    # Write Scan element
-    scan = ET.SubElement(song, "Scan")
-    scan.set("Version", "801")
-    scan.set("Bpm", str(bpm_to_seconds_per_beat(result.bpm)))
-    scan.set("Key", result.key)
-
-    # Write beatgrid anchor (first downbeat)
-    if result.downbeats:
-        beatgrid = ET.SubElement(song, "Poi")
-        beatgrid.set("Pos", str(result.downbeats[0]))
-        beatgrid.set("Type", "beatgrid")
 
     # Write prioritized cue points
     cues = prioritize_cues(result.segments, max_cues=max_cues)
@@ -121,6 +113,23 @@ def write_to_vdj_database(
         poi.set("Num", str(i))
         poi.set("Type", "cue")
 
-    # Write back
-    tree.write(str(db_path), encoding="UTF-8", xml_declaration=True)
+    # Re-indent to match VDJ's style (1 space for Song, 2 spaces for children)
+    ET.indent(tree, space=" ")
+
+    # Write back preserving VDJ's expected format:
+    # - Double quotes in XML declaration
+    # - CRLF line endings
+    # - Indentation matching original file
+    buf = BytesIO()
+    tree.write(buf, encoding="UTF-8", xml_declaration=True, short_empty_elements=True)
+    output = buf.getvalue().decode("utf-8")
+    # Fix single quotes in XML declaration to double quotes
+    output = re.sub(
+        r"<\?xml version='1\.0' encoding='UTF-8'\?>",
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        output,
+    )
+    # Normalize to CRLF line endings (VDJ uses CRLF on all platforms)
+    output = output.replace("\r\n", "\n").replace("\n", "\r\n")
+    db_path.write_bytes(output.encode("utf-8"))
     logger.info("Wrote %d cue points to VDJ database for %s", len(cues), filepath)

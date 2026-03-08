@@ -9,7 +9,8 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 - LLM-assisted metadata enrichment operational, deferred to download phase for zero wall-clock overhead
 - ML audio post-processing implemented: 5-stage pipeline (allin1 structure, essentia key, EDM reclassify, bar count, beat-snap) + VDJ cue writer
 - allin1 runs in a separate Docker container (NATTEN has no macOS wheels); main server stays native for Claude CLI
-- Analysis microservice on port 9235; main server proxies /api/analyze calls and handles VDJ write
+- Analysis microservice on port 9235; results stored as sidecar `.meta.json` files, VDJ sync is a separate manual step
+- SQLite tracks per-song status: downloaded → analyzing → analyzed → synced
 - Metadata API enrichment complete: MusicBrainz + Last.fm search with LLM disambiguation at download time
 
 ## Key Decisions
@@ -35,6 +36,9 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 | Search-then-Select for metadata | MusicBrainz + Last.fm provide candidates; LLM picks best match using YouTube context. APIs for structured data, LLM for reasoning. | Metadata API enrichment design |
 | LLM as disambiguator, not guesser | LLM decides match quality (high/medium/low/no_match). No auto-pick from API without LLM validation. | Metadata API enrichment design |
 | Enrichment source tracking | `enrichment_source` field tracks provenance: api+claude, claude, basic, none. Frontend can display this. | Metadata API enrichment design |
+| Decoupled analysis from VDJ | Analysis writes sidecar `.meta.json` files; VDJ database.xml only touched during explicit sync step. Prevents corruption from concurrent writes. | Decoupled analysis design |
+| SQLite for track status | Lean tracker (`tracks.db`) for download→analysis→sync pipeline. Single table, status column as state machine. | Decoupled analysis design |
+| VDJ safety check on sync | Sync refuses to write if VDJ process is running. Only writes to songs VDJ has already scanned. | Decoupled analysis design |
 
 ## Deep Docs
 
@@ -45,6 +49,7 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 | `design-docs/2026-02-26-01-*` through `04-*` | Per-phase focused design docs |
 | `design-docs/2026-02-27-audio-post-processing-design.md` | ML audio analysis pipeline design |
 | `design-docs/2026-02-28-metadata-api-enrichment-design.md` | MusicBrainz + Last.fm API lookup with LLM disambiguation |
+| `design-docs/2026-03-08-decoupled-analysis-vdj-sync-design.md` | Decoupled analysis with sidecar JSON + manual VDJ sync |
 
 ## See Also
 

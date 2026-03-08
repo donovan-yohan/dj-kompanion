@@ -28,6 +28,22 @@ def _make_db(tmp_path: Path) -> Path:
     return db_path
 
 
+def _make_db_with_song(tmp_path: Path, filepath: str = "/path/to/track.m4a") -> Path:
+    """Create a VDJ database.xml with an existing Song element (as VDJ would write it)."""
+    db_path = tmp_path / "database.xml"
+    root = ET.Element("VirtualDJ_Database", Version="2026")
+    song = ET.SubElement(root, "Song", FilePath=filepath, FileSize="10613834")
+    ET.SubElement(song, "Tags", Author="Artist", Title="Title", Genre="Genre")
+    ET.SubElement(song, "Infos", SongLength="195.0", LastModified="1772998059")
+    ET.SubElement(song, "Scan", Version="801", Bpm="0.468753", Key="Am", Volume="1.3")
+    ET.SubElement(song, "Poi", Pos="-1.339887", Type="beatgrid")
+    ET.SubElement(song, "Poi", Pos="0.058667", Type="automix", Point="realStart")
+    ET.SubElement(song, "Poi", Pos="194.978667", Type="automix", Point="realEnd")
+    tree = ET.ElementTree(root)
+    tree.write(str(db_path), encoding="UTF-8", xml_declaration=True)
+    return db_path
+
+
 def _sample_result() -> AnalysisResult:
     return AnalysisResult(
         bpm=128.0,
@@ -89,53 +105,17 @@ class TestPrioritizeCues:
 
 
 class TestWriteToVdjDatabase:
-    def test_creates_song_element(self, tmp_path: Path) -> None:
+    def test_skips_unknown_song(self, tmp_path: Path) -> None:
         db_path = _make_db(tmp_path)
         result = _sample_result()
         write_to_vdj_database(db_path, "/path/to/track.m4a", result)
 
         tree = ET.parse(db_path)
         song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
-        assert song is not None
-
-    def test_writes_scan_bpm(self, tmp_path: Path) -> None:
-        db_path = _make_db(tmp_path)
-        result = _sample_result()
-        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
-
-        tree = ET.parse(db_path)
-        song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
-        assert song is not None
-        scan = song.find("Scan")
-        assert scan is not None
-        assert float(scan.get("Bpm", "0")) == 60.0 / 128.0
-
-    def test_writes_scan_key(self, tmp_path: Path) -> None:
-        db_path = _make_db(tmp_path)
-        result = _sample_result()
-        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
-
-        tree = ET.parse(db_path)
-        song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
-        assert song is not None
-        scan = song.find("Scan")
-        assert scan is not None
-        assert scan.get("Key") == "Am"
-
-    def test_writes_beatgrid_poi(self, tmp_path: Path) -> None:
-        db_path = _make_db(tmp_path)
-        result = _sample_result()
-        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
-
-        tree = ET.parse(db_path)
-        song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
-        assert song is not None
-        beatgrid = song.find(".//Poi[@Type='beatgrid']")
-        assert beatgrid is not None
-        assert float(beatgrid.get("Pos", "0")) == 0.234
+        assert song is None  # should not create new Song entries
 
     def test_writes_cue_pois(self, tmp_path: Path) -> None:
-        db_path = _make_db(tmp_path)
+        db_path = _make_db_with_song(tmp_path)
         result = _sample_result()
         write_to_vdj_database(db_path, "/path/to/track.m4a", result, max_cues=8)
 
@@ -145,32 +125,55 @@ class TestWriteToVdjDatabase:
         cues = [p for p in song.findall("Poi") if p.get("Type") == "cue"]
         assert len(cues) == 5  # all 5 segments fit within 8
 
+    def test_preserves_existing_vdj_elements(self, tmp_path: Path) -> None:
+        db_path = _make_db_with_song(tmp_path)
+        result = _sample_result()
+        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
+
+        tree = ET.parse(db_path)
+        song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
+        assert song is not None
+        # VDJ's own elements should still be present
+        assert song.find("Tags") is not None
+        assert song.find("Infos") is not None
+        assert song.find("Scan") is not None
+        assert song.find(".//Poi[@Type='beatgrid']") is not None
+        assert song.find(".//Poi[@Type='automix']") is not None
+
+    def test_replaces_cues_on_update(self, tmp_path: Path) -> None:
+        db_path = _make_db_with_song(tmp_path)
+        result = _sample_result()
+        write_to_vdj_database(db_path, "/path/to/track.m4a", result, max_cues=3)
+
+        # Write again — should replace cues, not double them
+        write_to_vdj_database(db_path, "/path/to/track.m4a", result, max_cues=3)
+
+        tree = ET.parse(db_path)
+        song = tree.getroot().find(".//Song[@FilePath='/path/to/track.m4a']")
+        assert song is not None
+        cues = [p for p in song.findall("Poi") if p.get("Type") == "cue"]
+        assert len(cues) == 3  # not 6
+
+    def test_does_not_duplicate_song(self, tmp_path: Path) -> None:
+        db_path = _make_db_with_song(tmp_path)
+        result = _sample_result()
+        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
+        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
+
+        tree = ET.parse(db_path)
+        songs = [s for s in tree.getroot().findall("Song") if s.get("FilePath") == "/path/to/track.m4a"]
+        assert len(songs) == 1
+
     def test_skips_if_db_missing(self, tmp_path: Path) -> None:
         db_path = tmp_path / "nonexistent" / "database.xml"
         result = _sample_result()
         # Should not raise
         write_to_vdj_database(db_path, "/path/to/track.m4a", result)
 
-    def test_updates_existing_song(self, tmp_path: Path) -> None:
-        db_path = _make_db(tmp_path)
-        result = _sample_result()
-        write_to_vdj_database(db_path, "/path/to/track.m4a", result)
-        # Write again with different BPM
-        result2 = _sample_result()
-        result2.bpm = 140.0
-        write_to_vdj_database(db_path, "/path/to/track.m4a", result2)
-
-        tree = ET.parse(db_path)
-        songs = tree.getroot().findall(".//Song[@FilePath='/path/to/track.m4a']")
-        assert len(songs) == 1  # no duplicate
-        scan = songs[0].find("Scan")
-        assert scan is not None
-        assert abs(float(scan.get("Bpm", "0")) - 60.0 / 140.0) < 1e-10
-
     def test_handles_filepath_with_quotes_and_apostrophes(self, tmp_path: Path) -> None:
-        db_path = _make_db(tmp_path)
-        result = _sample_result()
         special_path = "/path/with \"quote\" and 'apostrophe'.m4a"
+        db_path = _make_db_with_song(tmp_path, filepath=special_path)
+        result = _sample_result()
         write_to_vdj_database(db_path, special_path, result)
 
         tree = ET.parse(db_path)
@@ -178,3 +181,5 @@ class TestWriteToVdjDatabase:
         songs = root.findall(".//Song")
         matching = [song for song in songs if song.get("FilePath") == special_path]
         assert len(matching) == 1
+        cues = [p for p in matching[0].findall("Poi") if p.get("Type") == "cue"]
+        assert len(cues) > 0
