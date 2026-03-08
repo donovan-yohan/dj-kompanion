@@ -7,10 +7,6 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function getInput(id: string): HTMLInputElement {
-  return getEl<HTMLInputElement>(id);
-}
-
 function stripPlaylistParams(url: string): string {
   try {
     const u = new URL(url);
@@ -361,7 +357,6 @@ async function handleDownloadPlaylist(url: string): Promise<void> {
 async function init(): Promise<void> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const currentUrl = tabs[0]?.url ?? "";
-  const pageTitle = tabs[0]?.title ?? "";
 
   const isConnected = await healthCheck();
   const statusEl = document.getElementById("server-status");

@@ -65,31 +65,6 @@ async def test_health_claude_unavailable(client: AsyncClient) -> None:
     assert response.json()["claude_available"] is False
 
 
-async def test_preview_success(client: AsyncClient) -> None:
-    with patch("server.app.extract_metadata", new_callable=AsyncMock, return_value=SAMPLE_RAW):
-        response = await client.post(
-            "/api/preview", json={"url": "https://www.youtube.com/watch?v=HMUDVMiITOU"}
-        )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["enriched"]["artist"] == "DJ Snake"
-    assert data["enrichment_source"] == "none"
-    assert "raw" in data
-
-
-async def test_preview_extraction_error(client: AsyncClient) -> None:
-    with patch(
-        "server.app.extract_metadata",
-        new_callable=AsyncMock,
-        side_effect=DownloadError("Not found", url="https://example.com/invalid"),
-    ):
-        response = await client.post("/api/preview", json={"url": "https://example.com/invalid"})
-    assert response.status_code == 404
-    data = response.json()
-    assert data["error"] == "extraction_failed"
-    assert "message" in data
-
-
 async def test_download_success(client: AsyncClient) -> None:
     mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
     with (
@@ -304,11 +279,6 @@ async def test_cors_chrome_extension(client: AsyncClient) -> None:
     assert (
         response.headers.get("access-control-allow-origin") == "chrome-extension://abcdefghijklmnop"
     )
-
-
-async def test_preview_missing_url(client: AsyncClient) -> None:
-    response = await client.post("/api/preview", json={})
-    assert response.status_code == 422
 
 
 SAMPLE_ENRICHED_DICT: dict[str, object] = {

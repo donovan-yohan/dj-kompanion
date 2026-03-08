@@ -23,8 +23,6 @@ from server.models import (
     DownloadResponse,
     HealthResponse,
     PlaylistTrack,
-    PreviewRequest,
-    PreviewResponse,
     ResolvePlaylistRequest,
     ResolvePlaylistResponse,
     RetagRequest,
@@ -66,20 +64,6 @@ async def health() -> HealthResponse:
         yt_dlp_version=yt_dlp_version,
         claude_available=claude_available,
     )
-
-
-@app.post("/api/preview", response_model=PreviewResponse)
-async def preview(req: PreviewRequest) -> PreviewResponse:
-    try:
-        raw = await extract_metadata(req.url, cookies=req.cookies)
-    except DownloadError as e:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "extraction_failed", "message": e.message, "url": e.url},
-        ) from e
-
-    enriched = basic_enrich(raw)
-    return PreviewResponse(raw=raw, enriched=enriched, enrichment_source="none")
 
 
 @app.post("/api/download", response_model=DownloadResponse)
@@ -152,9 +136,7 @@ async def download(req: DownloadRequest) -> DownloadResponse:
 
         candidates = [] if isinstance(candidates_result, BaseException) else candidates_result
 
-        claude_result = await try_enrich_metadata(
-            raw, model=cfg.llm.model, candidates=candidates
-        )
+        claude_result = await try_enrich_metadata(raw, model=cfg.llm.model, candidates=candidates)
 
         if claude_result is not None and candidates:
             enrichment_source = "api+claude"
@@ -164,9 +146,7 @@ async def download(req: DownloadRequest) -> DownloadResponse:
             final_metadata = merge_metadata(req.metadata, claude_result, req.user_edited_fields)
         else:
             enrichment_source = "basic"
-            final_metadata = merge_metadata(
-                req.metadata, basic, req.user_edited_fields
-            )
+            final_metadata = merge_metadata(req.metadata, basic, req.user_edited_fields)
     else:
         try:
             filepath = await download_audio(

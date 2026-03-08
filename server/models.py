@@ -38,17 +38,6 @@ class CookieItem(BaseModel):
     expiration_date: float | None = None
 
 
-class PreviewRequest(BaseModel):
-    url: str
-    cookies: list[CookieItem] = []
-
-
-class PreviewResponse(BaseModel):
-    raw: RawMetadata
-    enriched: EnrichedMetadata
-    enrichment_source: Literal["claude", "none"]
-
-
 _ALLOWED_FORMATS = {"best", "mp3", "flac", "m4a", "ogg", "opus", "wav", "aac"}
 _ENRICHED_FIELDS = frozenset(EnrichedMetadata.model_fields.keys())
 
