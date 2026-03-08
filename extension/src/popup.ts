@@ -1,4 +1,4 @@
-import { healthCheck, requestRetag, requestSyncVdj, resolvePlaylist } from "./api.js";
+import { healthCheck, requestRetag, resolvePlaylist } from "./api.js";
 import { getEl } from "./dom.js";
 import { readQueue, writeQueue } from "./queue-storage.js";
 import type { EnrichedMetadata, QueueItem } from "./types.js";
@@ -354,30 +354,6 @@ async function handleDownloadPlaylist(url: string): Promise<void> {
   }
 }
 
-async function handleSyncVdj(): Promise<void> {
-  const btn = document.getElementById("btn-sync-vdj") as HTMLButtonElement;
-  const statusEl = document.getElementById("sync-status");
-  btn.disabled = true;
-  btn.textContent = "Syncing...";
-  if (statusEl) statusEl.textContent = "";
-
-  try {
-    const result = await requestSyncVdj();
-    if (result.refused) {
-      if (statusEl) statusEl.textContent = "VDJ is running — close it first";
-    } else {
-      const errorSuffix = result.errors.length > 0 ? `, ${result.errors.length} error(s)` : "";
-      if (statusEl)
-        statusEl.textContent = `Synced ${result.synced}, skipped ${result.skipped}${errorSuffix}`;
-    }
-  } catch (err) {
-    if (statusEl) statusEl.textContent = err instanceof Error ? err.message : String(err);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Sync to VDJ";
-  }
-}
-
 async function init(): Promise<void> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const currentUrl = tabs[0]?.url ?? "";
@@ -388,10 +364,6 @@ async function init(): Promise<void> {
     statusEl.className = isConnected ? "status-dot connected" : "status-dot disconnected";
     statusEl.title = isConnected ? "Connected" : "Server not running";
   }
-
-  // Enable sync button when connected
-  const syncBtn = document.getElementById("btn-sync-vdj") as HTMLButtonElement;
-  if (syncBtn) syncBtn.disabled = !isConnected;
 
   // Format persistence
   const stored = await chrome.storage.sync.get({ format: "m4a" });
@@ -449,10 +421,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("btn-dismiss-error")?.addEventListener("click", () => {
     hideError();
-  });
-
-  document.getElementById("btn-sync-vdj")?.addEventListener("click", () => {
-    void handleSyncVdj();
   });
 
   chrome.storage.onChanged.addListener((changes) => {

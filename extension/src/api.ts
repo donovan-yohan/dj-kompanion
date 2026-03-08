@@ -4,7 +4,6 @@ import type {
   ResolvePlaylistResponse,
   RetagRequest,
   RetagResponse,
-  SyncVdjResponse,
   TracksResponse,
 } from "./types.js";
 
@@ -101,17 +100,6 @@ export async function fetchTracks(): Promise<TracksResponse> {
   const response = await fetchWithTimeout(`${baseUrl}/api/tracks`, {}, 10000);
   if (!response.ok) throw new Error(`Server error ${response.status}`);
   return (await response.json()) as TracksResponse;
-}
-
-export async function requestSyncVdj(): Promise<SyncVdjResponse> {
-  const baseUrl = await getBaseUrl();
-  const response = await fetchWithTimeout(
-    `${baseUrl}/api/sync-vdj`,
-    { method: "POST", headers: { "Content-Type": "application/json" } },
-    30000
-  );
-  if (!response.ok) throw new Error(`Server error ${response.status}`);
-  return (await response.json()) as SyncVdjResponse;
 }
 
 export async function requestReanalyze(filepath: string): Promise<void> {

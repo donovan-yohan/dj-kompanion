@@ -105,17 +105,9 @@ export interface TrackStatus {
   analysis_path: string | null;
   error: string | null;
   analyzed_at: string | null;
-  synced_at: string | null;
 }
 
 export interface TracksResponse {
   tracks: TrackStatus[];
 }
 
-export interface SyncVdjResponse {
-  status: string;
-  synced: number;
-  skipped: number;
-  errors: string[];
-  refused: boolean;
-}
