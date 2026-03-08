@@ -58,6 +58,12 @@ header h1 {
   letter-spacing: 0.3px;
 }
 
+.version-label {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 section {
   padding: 14px;
 }
@@ -134,11 +140,26 @@ section {
   }
 }
 
-.loading-text {
-  text-align: center;
-  color: var(--text-muted);
+/* Action bar */
+.action-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.format-select {
+  padding: 7px 8px;
   font-size: 13px;
-  margin-bottom: 4px;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.action-bar .btn {
+  flex: 1;
 }
 
 /* Metadata form fields */
@@ -172,40 +193,6 @@ section {
 
 .field-row input:focus {
   border-color: var(--accent);
-}
-
-/* Format radio group */
-.format-group {
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 8px 10px;
-  margin: 10px 0 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-.format-group legend {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: 0 4px;
-}
-
-.radio-label {
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-
-/* Enrichment source */
-.enrichment-info {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-bottom: 10px;
 }
 
 /* Complete state */
@@ -344,10 +331,6 @@ section {
 }
 
 /* Section spacing */
-#section-fetch {
-  padding: 14px;
-}
-
 #section-queue {
   padding: 0;
   border-top: 1px solid var(--border);
