@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from server.analyzer import analyze_audio
 from server.config import load_config
-from server.downloader import DownloadError, download_audio, extract_metadata
+from server.downloader import DownloadError, download_audio, extract_metadata, resolve_playlist
 from server.enrichment import basic_enrich, is_claude_available, merge_metadata, try_enrich_metadata
 from server.logging_config import setup_logging
 from server.metadata_lookup import MetadataCandidate, search_metadata
@@ -22,8 +22,11 @@ from server.models import (
     DownloadRequest,
     DownloadResponse,
     HealthResponse,
+    PlaylistTrack,
     PreviewRequest,
     PreviewResponse,
+    ResolvePlaylistRequest,
+    ResolvePlaylistResponse,
     RetagRequest,
     RetagResponse,
 )
@@ -250,3 +253,19 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         )
 
     return AnalyzeResponse(status="ok", analysis=result)
+
+
+@app.post("/api/resolve-playlist", response_model=ResolvePlaylistResponse)
+async def resolve_playlist_endpoint(req: ResolvePlaylistRequest) -> ResolvePlaylistResponse:
+    try:
+        playlist_title, tracks = await resolve_playlist(req.url, cookies=req.cookies)
+    except DownloadError as e:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "playlist_resolve_failed", "message": e.message, "url": e.url},
+        ) from e
+
+    return ResolvePlaylistResponse(
+        playlist_title=playlist_title,
+        tracks=[PlaylistTrack(url=url, title=title) for url, title in tracks],
+    )

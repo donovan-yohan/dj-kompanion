@@ -415,3 +415,40 @@ async def test_analyze_failure(client: AsyncClient) -> None:
         response = await client.post("/api/analyze", json={"filepath": "/path/to/track.m4a"})
     assert response.status_code == 500
     assert response.json()["error"] == "analysis_failed"
+
+
+async def test_resolve_playlist_success(client: AsyncClient) -> None:
+    mock_tracks = [
+        ("https://www.youtube.com/watch?v=abc", "Track 1"),
+        ("https://www.youtube.com/watch?v=def", "Track 2"),
+    ]
+    with patch(
+        "server.app.resolve_playlist",
+        new_callable=AsyncMock,
+        return_value=("My Playlist", mock_tracks),
+    ):
+        response = await client.post(
+            "/api/resolve-playlist",
+            json={"url": "https://www.youtube.com/playlist?list=PLxyz"},
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["playlist_title"] == "My Playlist"
+    assert len(data["tracks"]) == 2
+    assert data["tracks"][0]["url"] == "https://www.youtube.com/watch?v=abc"
+    assert data["tracks"][0]["title"] == "Track 1"
+
+
+async def test_resolve_playlist_failure(client: AsyncClient) -> None:
+    with patch(
+        "server.app.resolve_playlist",
+        new_callable=AsyncMock,
+        side_effect=DownloadError("Not a playlist", url="https://example.com"),
+    ):
+        response = await client.post(
+            "/api/resolve-playlist",
+            json={"url": "https://example.com"},
+        )
+    assert response.status_code == 404
+    data = response.json()
+    assert data["error"] == "playlist_resolve_failed"

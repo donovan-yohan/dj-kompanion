@@ -71,6 +71,7 @@ def _extract_metadata_sync(url: str, cookies: list[CookieItem] | None = None) ->
         ydl_opts: dict[str, Any] = {
             "quiet": True,
             "no_warnings": True,
+            "noplaylist": True,
         }
         if cookie_path:
             ydl_opts["cookiefile"] = cookie_path
@@ -119,6 +120,7 @@ def _download_audio_sync(
                 }
             ],
             "quiet": True,
+            "noplaylist": True,
         }
         if cookie_path:
             ydl_opts["cookiefile"] = cookie_path
@@ -152,3 +154,45 @@ async def download_audio(
     return await asyncio.to_thread(
         _download_audio_sync, url, output_dir, filename, preferred_format, cookies
     )
+
+
+def _resolve_playlist_sync(
+    url: str, cookies: list[CookieItem] | None = None
+) -> tuple[str, list[tuple[str, str]]]:
+    """Resolve playlist to list of (url, title) tuples. Returns (playlist_title, tracks)."""
+    with _cookie_file(cookies or []) as cookie_path:
+        ydl_opts: dict[str, Any] = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": "in_playlist",
+        }
+        if cookie_path:
+            ydl_opts["cookiefile"] = cookie_path
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info: dict[str, Any] | None = ydl.extract_info(url, download=False)
+                if info is None:
+                    raise DownloadError("No playlist data returned", url=url)
+
+                playlist_title = str(info.get("title") or "Unknown Playlist")
+                entries = info.get("entries") or []
+                tracks: list[tuple[str, str]] = []
+                for entry in entries:
+                    if entry is None:
+                        continue
+                    video_url = entry.get("url") or entry.get("webpage_url") or ""
+                    video_title = str(entry.get("title") or "Unknown")
+                    if video_url:
+                        tracks.append((video_url, video_title))
+                return playlist_title, tracks
+        except DownloadError:
+            raise
+        except Exception as exc:
+            raise DownloadError(str(exc), url=url) from exc
+
+
+async def resolve_playlist(
+    url: str, cookies: list[CookieItem] | None = None
+) -> tuple[str, list[tuple[str, str]]]:
+    """Resolve playlist URLs without downloading."""
+    return await asyncio.to_thread(_resolve_playlist_sync, url, cookies)
