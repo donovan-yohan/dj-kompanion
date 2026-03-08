@@ -56,7 +56,7 @@ _ENRICHED_FIELDS = frozenset(EnrichedMetadata.model_fields.keys())
 class DownloadRequest(BaseModel):
     url: str
     metadata: EnrichedMetadata
-    raw: RawMetadata
+    raw: RawMetadata | None = None
     format: str = "best"
     user_edited_fields: list[str] = []
     cookies: list[CookieItem] = []
@@ -128,3 +128,18 @@ class AnalyzeResponse(BaseModel):
     status: str
     analysis: AnalysisResult
     message: str | None = None
+
+
+class PlaylistTrack(BaseModel):
+    url: str
+    title: str
+
+
+class ResolvePlaylistRequest(BaseModel):
+    url: str
+    cookies: list[CookieItem] = []
+
+
+class ResolvePlaylistResponse(BaseModel):
+    playlist_title: str
+    tracks: list[PlaylistTrack]

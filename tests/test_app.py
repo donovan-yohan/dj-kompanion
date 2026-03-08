@@ -273,6 +273,27 @@ async def test_download_user_edited_fields_preserved(client: AsyncClient) -> Non
     assert tagged_metadata.year == 2014  # not edited, Claude fills in
 
 
+async def test_download_without_raw_extracts_metadata(client: AsyncClient) -> None:
+    mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
+    with (
+        patch("server.app.extract_metadata", new_callable=AsyncMock, return_value=SAMPLE_RAW),
+        patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
+        patch("server.app.tag_file", return_value=mock_path),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
+    ):
+        response = await client.post(
+            "/api/download",
+            json={
+                "url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
+                "metadata": {"artist": "DJ Snake", "title": "Turn Down for What"},
+                "format": "best",
+            },
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "complete"
+
+
 async def test_cors_chrome_extension(client: AsyncClient) -> None:
     with patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False):
         response = await client.get(

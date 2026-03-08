@@ -83,13 +83,24 @@ async def preview(req: PreviewRequest) -> PreviewResponse:
 async def download(req: DownloadRequest) -> DownloadResponse:
     cfg = load_config()
 
+    # Extract raw metadata if not provided (simplified flow)
+    raw = req.raw
+    if raw is None:
+        try:
+            raw = await extract_metadata(req.url, cookies=req.cookies)
+        except DownloadError as e:
+            raise HTTPException(
+                status_code=500,
+                detail={"error": "extraction_failed", "message": e.message, "url": e.url},
+            ) from e
+
     filename = build_download_filename(req.metadata.artist, req.metadata.title)
     use_llm = cfg.llm.enabled and await is_claude_available()
 
     enrichment_source: Literal["api+claude", "claude", "basic", "none"]
 
     if use_llm:
-        basic = basic_enrich(req.raw)
+        basic = basic_enrich(raw)
 
         if cfg.metadata_lookup.enabled:
             api_task = search_metadata(
@@ -139,7 +150,7 @@ async def download(req: DownloadRequest) -> DownloadResponse:
         candidates = [] if isinstance(candidates_result, BaseException) else candidates_result
 
         claude_result = await try_enrich_metadata(
-            req.raw, model=cfg.llm.model, candidates=candidates
+            raw, model=cfg.llm.model, candidates=candidates
         )
 
         if claude_result is not None and candidates:
