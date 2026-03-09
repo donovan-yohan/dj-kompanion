@@ -1,6 +1,6 @@
 # Serato Tag Cues Implementation Plan
 
-> **Status**: Active | **Created**: 2026-03-08 | **Last Updated**: 2026-03-08T22:58
+> **Status**: Completed | **Created**: 2026-03-08 | **Completed**: 2026-03-08
 > **Design Doc**: `docs/design-docs/2026-03-08-serato-tag-cues-design.md`
 > **For Claude:** Use /harness:orchestrate to execute this plan.
 
@@ -13,20 +13,25 @@
 | 2026-03-08 | Design | Merge consecutive same-type sections | Prevents slot waste (e.g., "Verse 1, 2, 3" → single "Verse") |
 | 2026-03-08 | Design | No hard cue limit | hotcues XT plugin provides page navigation; write every transition |
 | 2026-03-08 | Design | Remove VDJ sync pipeline entirely | Writing to database.xml would override Serato tag cues |
+| 2026-03-08 | Retrospective | Plan completed | 7 tasks, 3 surprises, 0 drift. Workers effective but need HTML validation. |
 
 ## Progress
 
 - [x] Task 1: Section merging in analyzer _(completed 2026-03-08)_
-- [ ] Task 2: Serato tag writing module
-- [ ] Task 3: Wire Serato tags into analysis pipeline
-- [ ] Task 4: Remove VDJ sync pipeline (server)
+- [x] Task 2: Serato tag writing module _(completed 2026-03-08)_
+- [x] Task 3: Wire Serato tags into analysis pipeline _(completed 2026-03-08)_
+- [x] Task 4: Remove VDJ sync pipeline (server) _(completed 2026-03-08)_
 - [x] Task 5: Remove VDJ sync from extension _(completed 2026-03-08)_
 - [x] Task 6: Change default format to MP3 _(completed 2026-03-08)_
-- [ ] Task 7: Update config and cleanup
+- [x] Task 7: Update config and cleanup _(completed 2026-03-08)_
 
 ## Surprises & Discoveries
 
-_None yet — updated during execution by /harness:orchestrate._
+| Date | What | Impact | Resolution |
+|------|------|--------|------------|
+| 2026-03-08 | Task 2: serato-tools needed `# type: ignore[import-untyped]` inline, not just mypy override | Minor — same pattern as other untyped deps | Used existing pattern from `musicbrainzngs` |
+| 2026-03-08 | Task 3: `write_serato_cues` was already imported by Task 2 worker and called at wrong location | Needed relocation into `if analysis_dir` block + error handling | Worker-3 moved and wrapped correctly |
+| 2026-03-08 | Task 5: Worker removed closing `</script>` tag from popup.html along with sync footer | Download button permanently disabled — popup.js never executed | Fixed post-completion: restored `</script>` tag |
 
 ## Plan Drift
 
@@ -663,13 +668,20 @@ git commit -m "docs: update architecture for Serato tag cues pipeline"
 
 ## Outcomes & Retrospective
 
-_Filled by /harness:complete when work is done._
+All 7 tasks completed. Serato GEOB cue tags now written directly into MP3 files after analysis. VDJ sync pipeline fully removed. Default format switched to MP3.
 
 **What worked:**
--
+- Parallel worker dispatch completed 7 tasks efficiently
+- Section merging logic (merge-before-number) works cleanly
+- serato-tools library integration was straightforward
+- Complete VDJ sync removal was the right call — cleaner than deprecation
 
 **What didn't:**
--
+- Task 5 worker dropped the `</script>` closing tag from popup.html, breaking the extension completely — caught only when user tested
+- Task 2 and Task 3 workers had overlapping scope (both tried to wire serato_tags into analyzer.py)
+- No integration testing caught the HTML breakage since extension tests aren't automated
 
 **Learnings to codify:**
--
+- Workers modifying HTML should be validated with a build + basic structural check
+- Parallel workers on adjacent tasks can create merge conflicts — sequential dispatch is safer for tightly coupled changes
+- serato-tools v4.0.1 uses `modify_entries(callback)` pattern with `CueEntry` dataclass (position in ms, 3-byte RGB color)

@@ -6,18 +6,18 @@ Execution plans for active and completed work.
 
 - Audio post-processing feature complete
 - Dockerized analyzer microservice complete — allin1 pipeline extracted into separate Docker container, main server proxies analysis requests over HTTP
-- Decoupled analysis pipeline: sidecar `.meta.json` + SQLite tracking + manual VDJ sync
+- Decoupled analysis pipeline: sidecar `.meta.json` + SQLite tracking
+- Serato GEOB cue tags written directly to MP3 files; VDJ reads on scan via getCuesFromTags
 
 ## Active Plans
 
-| Plan | Created |
-|------|---------|
-| [Serato Tag Cues](exec-plans/active/2026-03-08-serato-tag-cues.md) | 2026-03-08 |
+_None_
 
 ## Completed Plans
 
 | Plan | Created | Completed |
 |------|---------|-----------|
+| [Serato Tag Cues](exec-plans/completed/2026-03-08-serato-tag-cues.md) | 2026-03-08 | 2026-03-08 |
 | [Decoupled Analysis & VDJ Sync](exec-plans/completed/2026-03-08-decoupled-analysis-vdj-sync.md) | 2026-03-08 | 2026-03-08 |
 | [Metadata API Enrichment](exec-plans/completed/2026-02-28-metadata-api-enrichment.md) | 2026-02-28 | 2026-02-28 |
 | [Dockerized Analyzer](exec-plans/completed/2026-02-28-dockerized-analyzer.md) | 2026-02-28 | 2026-02-28 |

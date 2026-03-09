@@ -7,10 +7,11 @@ dj-kompanion prioritizes simplicity and personal convenience. It is a single-use
 - Core download + tagging pipeline functional
 - Chrome extension + local server architecture implemented
 - LLM-assisted metadata enrichment operational, deferred to download phase for zero wall-clock overhead
-- ML audio post-processing implemented: 5-stage pipeline (allin1 structure, essentia key, EDM reclassify, bar count, beat-snap) + VDJ cue writer
+- ML audio post-processing implemented: 5-stage pipeline (allin1 structure, essentia key, EDM reclassify, section merge, bar count, beat-snap) + Serato GEOB cue tag writer
 - allin1 runs in a separate Docker container (NATTEN has no macOS wheels); main server stays native for Claude CLI
-- Analysis microservice on port 9235; results stored as sidecar `.meta.json` files, VDJ sync is a separate manual step
-- SQLite tracks per-song status: downloaded → analyzing → analyzed → synced
+- Analysis microservice on port 9235; results stored as sidecar `.meta.json` files + Serato GEOB cue tags written directly to MP3
+- SQLite tracks per-song status: downloaded → analyzing → analyzed
+- Default download format is MP3 (Serato tags require ID3v2)
 - Metadata API enrichment complete: MusicBrainz + Last.fm search with LLM disambiguation at download time
 
 ## Key Decisions
