@@ -29,7 +29,7 @@ function hasPlaylistParam(url: string): boolean {
 }
 
 function getSelectedFormat(): string {
-  return (document.getElementById("format-select") as HTMLSelectElement)?.value ?? "m4a";
+  return (document.getElementById("format-select") as HTMLSelectElement)?.value ?? "mp3";
 }
 
 function placeholderMetadata(title: string, url: string): EnrichedMetadata {
@@ -366,7 +366,7 @@ async function init(): Promise<void> {
   }
 
   // Format persistence
-  const stored = await chrome.storage.sync.get({ format: "m4a" });
+  const stored = await chrome.storage.sync.get({ format: "mp3" });
   const formatSelect = document.getElementById("format-select") as HTMLSelectElement;
   if (formatSelect) formatSelect.value = stored["format"] as string;
 

@@ -12,7 +12,7 @@ from httpx import ASGITransport, AsyncClient
 
 from server.app import app
 from server.downloader import DownloadError
-from server.models import AnalysisResult, EnrichedMetadata, RawMetadata, SegmentInfo
+from server.models import EnrichedMetadata, RawMetadata
 
 SAMPLE_RAW = RawMetadata(
     title="DJ Snake - Turn Down for What (Official Video)",
@@ -71,6 +71,8 @@ async def test_download_success(client: AsyncClient) -> None:
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path),
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -147,6 +149,8 @@ async def test_download_with_claude_enrichment(client: AsyncClient) -> None:
         patch(
             "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
         ),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -177,6 +181,8 @@ async def test_download_with_api_and_claude_enrichment(client: AsyncClient) -> N
         patch(
             "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=SAMPLE_ENRICHED
         ),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -200,6 +206,8 @@ async def test_download_claude_fails_gracefully(client: AsyncClient) -> None:
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=True),
         patch("server.app.search_metadata", new_callable=AsyncMock, return_value=[]),
         patch("server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=None),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -228,6 +236,8 @@ async def test_download_user_edited_fields_preserved(client: AsyncClient) -> Non
         patch(
             "server.app.try_enrich_metadata", new_callable=AsyncMock, return_value=claude_enriched
         ),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -255,6 +265,8 @@ async def test_download_without_raw_extracts_metadata(client: AsyncClient) -> No
         patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
         patch("server.app.tag_file", return_value=mock_path),
         patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
+        patch("server.app.upsert_track"),
+        patch("server.app.asyncio.create_task"),
     ):
         response = await client.post(
             "/api/download",
@@ -339,54 +351,6 @@ async def test_retag_tagging_error(client: AsyncClient) -> None:
     assert data["error"] == "tagging_failed"
 
 
-SAMPLE_ANALYSIS = AnalysisResult(
-    bpm=128.0,
-    key="Am",
-    key_camelot="8A",
-    beats=[0.234],
-    downbeats=[0.234],
-    segments=[
-        SegmentInfo(
-            label="Intro (32 bars)", original_label="intro", start=0.234, end=60.5, bars=32
-        ),
-    ],
-    vdj_written=False,
-)
-
-
-async def test_analyze_success(client: AsyncClient) -> None:
-    with (
-        patch("server.app.Path") as mock_fp_cls,
-        patch("server.app.analyze_audio", new_callable=AsyncMock, return_value=SAMPLE_ANALYSIS),
-    ):
-        mock_fp_cls.return_value.exists.return_value = True
-        response = await client.post("/api/analyze", json={"filepath": "/path/to/track.m4a"})
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "ok"
-    assert data["analysis"]["bpm"] == 128.0
-    assert data["analysis"]["key"] == "Am"
-
-
-async def test_analyze_file_not_found(client: AsyncClient) -> None:
-    with patch("server.app.Path") as mock_fp_cls:
-        mock_fp_cls.return_value.exists.return_value = False
-        response = await client.post("/api/analyze", json={"filepath": "/nonexistent.m4a"})
-    assert response.status_code == 404
-    assert response.json()["error"] == "file_not_found"
-
-
-async def test_analyze_failure(client: AsyncClient) -> None:
-    with (
-        patch("server.app.Path") as mock_fp_cls,
-        patch("server.app.analyze_audio", new_callable=AsyncMock, return_value=None),
-    ):
-        mock_fp_cls.return_value.exists.return_value = True
-        response = await client.post("/api/analyze", json={"filepath": "/path/to/track.m4a"})
-    assert response.status_code == 500
-    assert response.json()["error"] == "analysis_failed"
-
-
 async def test_resolve_playlist_success(client: AsyncClient) -> None:
     mock_tracks = [
         ("https://www.youtube.com/watch?v=abc", "Track 1"),
@@ -422,3 +386,89 @@ async def test_resolve_playlist_failure(client: AsyncClient) -> None:
     assert response.status_code == 404
     data = response.json()
     assert data["error"] == "playlist_resolve_failed"
+
+
+async def test_tracks_endpoint(client: AsyncClient) -> None:
+    from server.track_db import TrackRow
+
+    mock_tracks = [
+        TrackRow(
+            id=1,
+            filepath="/music/track.m4a",
+            analysis_path="/analysis/track.json",
+            status="analyzed",
+            error=None,
+            analyzed_at="2026-01-01T00:00:00",
+            created_at="2026-01-01T00:00:00",
+        ),
+    ]
+    with patch("server.app.get_all_tracks", return_value=mock_tracks):
+        response = await client.get("/api/tracks")
+    assert response.status_code == 200
+    data = response.json()
+    assert "tracks" in data
+    assert len(data["tracks"]) == 1
+    assert data["tracks"][0]["filepath"] == "/music/track.m4a"
+    assert data["tracks"][0]["status"] == "analyzed"
+
+
+async def test_tracks_endpoint_empty(client: AsyncClient) -> None:
+    with patch("server.app.get_all_tracks", return_value=[]):
+        response = await client.get("/api/tracks")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tracks"] == []
+
+
+async def test_reanalyze_not_found(client: AsyncClient) -> None:
+    with patch("server.app.get_track", return_value=None):
+        response = await client.post("/api/reanalyze", json={"filepath": "/nonexistent.m4a"})
+    assert response.status_code == 404
+    assert response.json()["error"] == "not_found"
+
+
+async def test_reanalyze_success(client: AsyncClient) -> None:
+    from server.track_db import TrackRow
+
+    mock_track = TrackRow(
+        id=1,
+        filepath="/music/track.m4a",
+        analysis_path=None,
+        status="failed",
+        error="previous error",
+        analyzed_at=None,
+        created_at="2026-01-01T00:00:00",
+    )
+    with (
+        patch("server.app.get_track", return_value=mock_track),
+        patch("server.app.upsert_track"),
+        patch("server.app.analyze_audio", new_callable=AsyncMock),
+    ):
+        response = await client.post("/api/reanalyze", json={"filepath": "/music/track.m4a"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "queued"
+
+
+async def test_download_inserts_track_and_fires_analysis(client: AsyncClient) -> None:
+    mock_path = Path("/tmp/DJ Snake - Turn Down for What.m4a")
+    with (
+        patch("server.app.download_audio", new_callable=AsyncMock, return_value=mock_path),
+        patch("server.app.tag_file", return_value=mock_path),
+        patch("server.app.is_claude_available", new_callable=AsyncMock, return_value=False),
+        patch("server.app.upsert_track") as mock_upsert,
+        patch("server.app.analyze_audio", new_callable=AsyncMock) as mock_analyze,
+    ):
+        response = await client.post(
+            "/api/download",
+            json={
+                "url": "https://www.youtube.com/watch?v=HMUDVMiITOU",
+                "metadata": {"artist": "DJ Snake", "title": "Turn Down for What"},
+                "raw": SAMPLE_RAW_DICT,
+                "format": "best",
+            },
+        )
+    assert response.status_code == 200
+    mock_upsert.assert_called_once()
+    # analyze_audio is called to create the coroutine passed to asyncio.create_task
+    mock_analyze.assert_called_once()

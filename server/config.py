@@ -24,17 +24,8 @@ class MetadataLookupConfig(BaseModel):
     search_limit: int = 5
 
 
-def _default_vdj_database() -> Path:
-    """Return the default VDJ database.xml path for the current platform."""
-    if sys.platform == "darwin":
-        return Path("~/Library/Application Support/VirtualDJ/database.xml").expanduser()
-    return Path("~/Documents/VirtualDJ/database.xml").expanduser()
-
-
 class AnalysisConfig(BaseModel):
     enabled: bool = True
-    vdj_database: Path = _default_vdj_database()
-    max_cues: int = 8
     analyzer_url: str = "http://localhost:9235"
 
 
@@ -55,8 +46,6 @@ def _serializable_defaults() -> dict[str, object]:
     data["output_dir"] = str(config.output_dir)
     data["analysis"] = {
         "enabled": config.analysis.enabled,
-        "vdj_database": str(config.analysis.vdj_database),
-        "max_cues": config.analysis.max_cues,
         "analyzer_url": config.analysis.analyzer_url,
     }
     return data

@@ -62,12 +62,6 @@ export interface AnalysisResult {
   beats: number[];
   downbeats: number[];
   segments: SegmentInfo[];
-  vdj_written: boolean;
-}
-
-export interface AnalyzeResponse {
-  status: string;
-  analysis: AnalysisResult;
 }
 
 export interface QueueItem {
@@ -104,3 +98,16 @@ export interface ResolvePlaylistResponse {
   playlist_title: string;
   tracks: PlaylistTrack[];
 }
+
+export interface TrackStatus {
+  filepath: string;
+  status: string;
+  analysis_path: string | null;
+  error: string | null;
+  analyzed_at: string | null;
+}
+
+export interface TracksResponse {
+  tracks: TrackStatus[];
+}
+

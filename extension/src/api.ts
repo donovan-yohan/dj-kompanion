@@ -1,10 +1,10 @@
 import { DEFAULT_HOST, DEFAULT_PORT } from "./constants.js";
 import type {
-  AnalyzeResponse,
   CookieData,
   ResolvePlaylistResponse,
   RetagRequest,
   RetagResponse,
+  TracksResponse,
 } from "./types.js";
 
 const YT_AUTH_COOKIES = new Set([
@@ -95,22 +95,25 @@ export async function resolvePlaylist(url: string): Promise<ResolvePlaylistRespo
   return (await response.json()) as ResolvePlaylistResponse;
 }
 
-export async function requestAnalyze(filepath: string): Promise<AnalyzeResponse> {
+export async function fetchTracks(): Promise<TracksResponse> {
+  const baseUrl = await getBaseUrl();
+  const response = await fetchWithTimeout(`${baseUrl}/api/tracks`, {}, 10000);
+  if (!response.ok) throw new Error(`Server error ${response.status}`);
+  return (await response.json()) as TracksResponse;
+}
+
+export async function requestReanalyze(filepath: string): Promise<void> {
   const baseUrl = await getBaseUrl();
   const response = await fetchWithTimeout(
-    `${baseUrl}/api/analyze`,
+    `${baseUrl}/api/reanalyze`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filepath }),
     },
-    900000 // 15 minute timeout — ML analysis is slow, especially first run under emulation
+    10000
   );
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Server error ${response.status}: ${text}`);
-  }
-  return (await response.json()) as AnalyzeResponse;
+  if (!response.ok) throw new Error(`Server error ${response.status}`);
 }
 
 export async function requestRetag(req: RetagRequest): Promise<RetagResponse> {

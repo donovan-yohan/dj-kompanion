@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 
 from server.analyzer import _to_container_path, analyze_audio
+from server.track_db import get_track, init_db, upsert_track
 
 SAMPLE_ANALYSIS_JSON = {
     "status": "ok",
@@ -101,12 +102,20 @@ async def test_analyze_container_error_response() -> None:
     assert result is None
 
 
-async def test_analyze_writes_vdj_on_success(tmp_path: Path) -> None:
+async def test_analyze_writes_sidecar_and_updates_db(tmp_path: Path) -> None:
+    db_path = tmp_path / "tracks.db"
+    analysis_dir = tmp_path / "analysis"
+    audio_path = Path("/Users/me/Music/DJ Library/track.m4a")
+
+    init_db(db_path)
+    upsert_track(db_path, str(audio_path))
+
     mock_response = httpx.Response(200, json=SAMPLE_ANALYSIS_JSON)
     with (
         patch("server.analyzer.httpx.AsyncClient") as mock_client_cls,
-        patch("server.vdj.write_to_vdj_database") as mock_vdj,
+        patch("server.analyzer.write_serato_cues") as mock_serato,
     ):
+        mock_serato.return_value = False
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -114,10 +123,84 @@ async def test_analyze_writes_vdj_on_success(tmp_path: Path) -> None:
         mock_client_cls.return_value = mock_client
 
         result = await analyze_audio(
-            Path("/Users/me/Music/DJ Library/track.m4a"),
-            vdj_db_path=tmp_path / "database.xml",
+            audio_path,
+            db_path=db_path,
+            analysis_dir=analysis_dir,
             output_dir=Path("/Users/me/Music/DJ Library"),
         )
 
     assert result is not None
-    mock_vdj.assert_called_once()
+    assert result.bpm == 128.0
+
+    # Verify sidecar was written
+    meta_files = list(analysis_dir.glob("*.meta.json"))
+    assert len(meta_files) == 1
+    assert "track_" in meta_files[0].name
+
+    # Verify SQLite was updated
+    track = get_track(db_path, str(audio_path))
+    assert track is not None
+    assert track.status == "analyzed"
+    assert track.analysis_path is not None
+
+
+async def test_analyze_calls_serato_writer(tmp_path: Path) -> None:
+    """After successful analysis, write_serato_cues should be called."""
+    filepath = Path("/Users/me/Music/DJ Library/track.mp3")
+    analysis_dir = tmp_path / "analysis"
+
+    mock_response = httpx.Response(200, json=SAMPLE_ANALYSIS_JSON)
+    with (
+        patch("server.analyzer.httpx.AsyncClient") as mock_client_cls,
+        patch("server.analyzer.write_serato_cues") as mock_serato,
+    ):
+        mock_serato.return_value = True
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await analyze_audio(
+            filepath,
+            analysis_dir=analysis_dir,
+            output_dir=Path("/Users/me/Music/DJ Library"),
+        )
+
+    assert result is not None
+    mock_serato.assert_called_once()
+    call_args = mock_serato.call_args
+    assert call_args[0][0] == filepath
+    # Second arg should be the AnalysisResult
+    assert call_args[0][1].bpm == 128.0
+
+
+async def test_analyze_marks_failed_on_error(tmp_path: Path) -> None:
+    db_path = tmp_path / "tracks.db"
+    audio_path = Path("/Users/me/Music/DJ Library/track.m4a")
+
+    init_db(db_path)
+    upsert_track(db_path, str(audio_path))
+
+    mock_response = httpx.Response(500, text="Internal Server Error")
+    with patch("server.analyzer.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await analyze_audio(
+            audio_path,
+            db_path=db_path,
+            output_dir=Path("/Users/me/Music/DJ Library"),
+        )
+
+    assert result is None
+
+    # Verify SQLite was marked as failed
+    track = get_track(db_path, str(audio_path))
+    assert track is not None
+    assert track.status == "failed"
+    assert track.error is not None
+    assert "500" in track.error

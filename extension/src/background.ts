@@ -1,4 +1,4 @@
-import { fetchWithTimeout, getBaseUrl, getYouTubeCookies, requestAnalyze } from "./api.js";
+import { fetchWithTimeout, getBaseUrl, getYouTubeCookies } from "./api.js";
 import { readQueue, writeQueue } from "./queue-storage.js";
 import type { DownloadRequest, DownloadResponse, QueueItem } from "./types.js";
 
@@ -14,7 +14,7 @@ async function updateItem(id: string, updates: Partial<QueueItem>): Promise<void
 async function updateBadge(): Promise<void> {
   const queue = await readQueue();
   const active = queue.filter(
-    (i) => i.status === "pending" || i.status === "downloading" || i.status === "analyzing"
+    (i) => i.status === "pending" || i.status === "downloading"
   ).length;
   if (active > 0) {
     await chrome.action.setBadgeText({ text: String(active) });
@@ -73,17 +73,6 @@ async function processQueue(): Promise<void> {
           enrichmentSource: result.enrichment_source,
           metadata: result.metadata ?? pending.metadata,
         });
-
-        // Trigger analysis (non-critical — failure keeps status as "complete")
-        await updateItem(pending.id, { status: "analyzing" });
-        await updateBadge();
-        try {
-          const analyzeResult = await requestAnalyze(result.filepath);
-          await updateItem(pending.id, { status: "analyzed", analysis: analyzeResult.analysis });
-        } catch (analyzeErr) {
-          console.warn("Analysis failed (non-critical):", analyzeErr);
-          await updateItem(pending.id, { status: "complete" });
-        }
       } catch (err) {
         await updateItem(pending.id, {
           status: "error",
@@ -114,10 +103,6 @@ chrome.runtime.onStartup.addListener(() => {
     for (const item of queue) {
       if (item.status === "downloading") {
         item.status = "pending";
-        changed = true;
-      } else if (item.status === "analyzing") {
-        // Download already succeeded — reset to complete, not pending
-        item.status = "complete";
         changed = true;
       }
     }

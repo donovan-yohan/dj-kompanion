@@ -92,6 +92,39 @@ def _classify_segment(
     return label.capitalize()
 
 
+def _merge_consecutive(segments: list[ClassifiedSegment]) -> list[ClassifiedSegment]:
+    """Merge consecutive segments with the same label into one."""
+    if not segments:
+        return []
+
+    merged: list[ClassifiedSegment] = [
+        ClassifiedSegment(
+            label=segments[0].label,
+            original_label=segments[0].original_label,
+            start=segments[0].start,
+            end=segments[0].end,
+        )
+    ]
+    for seg in segments[1:]:
+        if seg.label == merged[-1].label:
+            merged[-1] = ClassifiedSegment(
+                label=merged[-1].label,
+                original_label=merged[-1].original_label,
+                start=merged[-1].start,
+                end=seg.end,
+            )
+        else:
+            merged.append(
+                ClassifiedSegment(
+                    label=seg.label,
+                    original_label=seg.original_label,
+                    start=seg.start,
+                    end=seg.end,
+                )
+            )
+    return merged
+
+
 def _number_duplicates(segments: list[ClassifiedSegment]) -> None:
     """Add numbering to repeated labels (e.g., Drop -> Drop 1, Drop 2)."""
     label_counts: dict[str, int] = {}
@@ -132,5 +165,6 @@ def reclassify_labels(
             )
         )
 
-    _number_duplicates(classified)
-    return classified
+    merged = _merge_consecutive(classified)
+    _number_duplicates(merged)
+    return merged

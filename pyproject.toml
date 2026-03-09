@@ -13,6 +13,7 @@ dependencies = [
     "httpx",
     "musicbrainzngs",
     "pylast",
+    "serato-tools",
 ]
 
 [project.scripts]
@@ -39,6 +40,10 @@ follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = "pylast.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "serato_tools.*"
 follow_imports = "skip"
 
 [tool.ruff]

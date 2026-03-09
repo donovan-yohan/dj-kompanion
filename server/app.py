@@ -11,28 +11,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from server.analyzer import analyze_audio
-from server.config import load_config
+from server.config import CONFIG_DIR, load_config
 from server.downloader import DownloadError, download_audio, extract_metadata, resolve_playlist
 from server.enrichment import basic_enrich, is_claude_available, merge_metadata, try_enrich_metadata
 from server.logging_config import setup_logging
 from server.metadata_lookup import MetadataCandidate, search_metadata
 from server.models import (
-    AnalyzeRequest,
-    AnalyzeResponse,
     DownloadRequest,
     DownloadResponse,
     HealthResponse,
     PlaylistTrack,
+    ReanalyzeRequest,
+    ReanalyzeResponse,
     ResolvePlaylistRequest,
     ResolvePlaylistResponse,
     RetagRequest,
     RetagResponse,
+    TracksResponse,
+    TrackStatus,
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
+from server.track_db import get_all_tracks, get_track, init_db, upsert_track
 
 logger = logging.getLogger(__name__)
 
 setup_logging()
+
+# Initialize track database on startup
+init_db(CONFIG_DIR / "tracks.db")
 
 app = FastAPI(title="dj-kompanion", version="0.1.0")
 
@@ -172,8 +178,21 @@ async def download(req: DownloadRequest) -> DownloadResponse:
             },
         ) from e
 
-    # Analysis is triggered by the extension via POST /api/analyze after download completes.
-    # This avoids duplicate ML pipeline runs.
+    # Insert track into SQLite and fire analysis in background
+    db_path = CONFIG_DIR / "tracks.db"
+    upsert_track(db_path, str(final_path))
+
+    if cfg.analysis.enabled:
+        analysis_dir = CONFIG_DIR / "analysis"
+        asyncio.create_task(
+            analyze_audio(
+                final_path,
+                db_path=db_path,
+                analysis_dir=analysis_dir,
+                analyzer_url=cfg.analysis.analyzer_url,
+                output_dir=cfg.output_dir,
+            )
+        )
 
     return DownloadResponse(
         status="complete",
@@ -207,34 +226,6 @@ async def retag(req: RetagRequest) -> RetagResponse:
     return RetagResponse(status="ok", filepath=str(final_path))
 
 
-@app.post("/api/analyze", response_model=AnalyzeResponse)
-async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
-    filepath = Path(req.filepath)
-    if not filepath.exists():
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "file_not_found", "message": f"File not found: {req.filepath}"},
-        )
-
-    cfg = load_config()
-    vdj_path = cfg.analysis.vdj_database if cfg.analysis.enabled else None
-    result = await analyze_audio(
-        filepath,
-        vdj_db_path=vdj_path,
-        max_cues=cfg.analysis.max_cues,
-        analyzer_url=cfg.analysis.analyzer_url,
-        output_dir=cfg.output_dir,
-    )
-
-    if result is None:
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "analysis_failed", "message": "Audio analysis failed"},
-        )
-
-    return AnalyzeResponse(status="ok", analysis=result)
-
-
 @app.post("/api/resolve-playlist", response_model=ResolvePlaylistResponse)
 async def resolve_playlist_endpoint(req: ResolvePlaylistRequest) -> ResolvePlaylistResponse:
     try:
@@ -249,3 +240,44 @@ async def resolve_playlist_endpoint(req: ResolvePlaylistRequest) -> ResolvePlayl
         playlist_title=playlist_title,
         tracks=[PlaylistTrack(url=url, title=title) for url, title in tracks],
     )
+
+
+@app.get("/api/tracks", response_model=TracksResponse)
+async def tracks_endpoint() -> TracksResponse:
+    db_path = CONFIG_DIR / "tracks.db"
+    rows = get_all_tracks(db_path)
+    tracks = [
+        TrackStatus(
+            filepath=r.filepath,
+            status=r.status,
+            analysis_path=r.analysis_path,
+            error=r.error,
+            analyzed_at=r.analyzed_at,
+        )
+        for r in rows
+    ]
+    return TracksResponse(tracks=tracks)
+
+
+@app.post("/api/reanalyze", response_model=ReanalyzeResponse)
+async def reanalyze_endpoint(req: ReanalyzeRequest) -> ReanalyzeResponse:
+    db_path = CONFIG_DIR / "tracks.db"
+    track = get_track(db_path, req.filepath)
+    if track is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_found", "message": f"Track not found: {req.filepath}"},
+        )
+    cfg = load_config()
+    upsert_track(db_path, req.filepath)  # resets to 'downloaded'
+    analysis_dir = CONFIG_DIR / "analysis"
+    asyncio.create_task(
+        analyze_audio(
+            Path(req.filepath),
+            db_path=db_path,
+            analysis_dir=analysis_dir,
+            analyzer_url=cfg.analysis.analyzer_url,
+            output_dir=cfg.output_dir,
+        )
+    )
+    return ReanalyzeResponse(status="queued")
