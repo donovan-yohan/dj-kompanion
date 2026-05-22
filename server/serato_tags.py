@@ -12,22 +12,31 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Defaults for required Serato Markers2 metadata entries.
-# VDJ won't read cues unless COLOR and BPMLOCK entries are present.
-_DEFAULT_BPMLOCK = TrackCuesV2.BpmLockEntry(enabled=False)
-_DEFAULT_COLOR = TrackCuesV2.ColorEntry(field1=b"\x00", color=b"\xff\xff\xff")
-
 # Serato cue colors, one per index (cycles for >8 cues).
 _CUE_COLORS: list[bytes] = [
-    TrackCuesV2.CueColors.RED.value,
-    TrackCuesV2.CueColors.ORANGE.value,
-    TrackCuesV2.CueColors.YELLOW.value,
-    TrackCuesV2.CueColors.LIMEGREEN2.value,
-    TrackCuesV2.CueColors.CYAN.value,
-    TrackCuesV2.CueColors.BLUE1.value,
-    TrackCuesV2.CueColors.PURPLE1.value,
-    TrackCuesV2.CueColors.PINK.value,
+    b"\xcc\x00\x00",
+    b"\xff\x99\x00",
+    b"\xff\xff\x00",
+    b"\x99\xff\x00",
+    b"\x00\xcc\xcc",
+    b"\x00\x00\xff",
+    b"\x99\x00\xff",
+    b"\xff\x00\xcc",
 ]
+
+def _make_default_bpmlock() -> TrackCuesV2.BpmLockEntry:
+    try:
+        return TrackCuesV2.BpmLockEntry(enabled=False)
+    except TypeError:
+        return TrackCuesV2.BpmLockEntry(b"\x00")
+
+
+def _make_default_color() -> TrackCuesV2.ColorEntry:
+    try:
+        return TrackCuesV2.ColorEntry(field1=b"\x00", color=b"\xff\xff\xff")
+    except TypeError:
+        return TrackCuesV2.ColorEntry(b"\x00\xff\xff\xff")
+
 
 def _build_cue_name(label: str, bars: int) -> str:
     bar_word = "bar" if bars == 1 else "bars"
@@ -74,8 +83,8 @@ def write_serato_cues(filepath: Path, result: AnalysisResult) -> bool:
         def _set_cues(
             track: TrackCuesV2.TrackCuesInfo,
         ) -> TrackCuesV2.TrackCuesInfo:
-            bpm_lock = track.bpm_lock or _DEFAULT_BPMLOCK
-            color = track.color or _DEFAULT_COLOR
+            bpm_lock = track.bpm_lock or _make_default_bpmlock()
+            color = track.color or _make_default_color()
             return TrackCuesV2.TrackCuesInfo(
                 bpm_lock=bpm_lock,
                 color=color,
