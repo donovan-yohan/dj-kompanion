@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import threading
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +27,7 @@ class MusicBrainzClient:
         self.min_interval_seconds = min_interval_seconds
         self._last_request_at = 0.0
         self._cache: dict[tuple[str, tuple[tuple[str, str | int | float], ...]], JsonObject] = {}
+        self._lock = threading.RLock()
         self._client = httpx.Client(
             base_url=self.base_url,
             timeout=timeout,
@@ -34,18 +37,19 @@ class MusicBrainzClient:
 
     def _request(self, path: str, params: Mapping[str, str | int | float]) -> JsonObject:
         cache_key = (path, tuple(sorted(params.items())))
-        if cache_key in self._cache:
-            return dict(self._cache[cache_key])
-        elapsed = time.monotonic() - self._last_request_at
-        if elapsed < self.min_interval_seconds:
-            time.sleep(self.min_interval_seconds - elapsed)
-        response = self._client.get(path, params=params)
-        self._last_request_at = time.monotonic()
-        response.raise_for_status()
-        data = response.json()
-        result = data if isinstance(data, dict) else {}
-        self._cache[cache_key] = result
-        return dict(result)
+        with self._lock:
+            if cache_key in self._cache:
+                return copy.deepcopy(self._cache[cache_key])
+            elapsed = time.monotonic() - self._last_request_at
+            if elapsed < self.min_interval_seconds:
+                time.sleep(self.min_interval_seconds - elapsed)
+            response = self._client.get(path, params=params)
+            self._last_request_at = time.monotonic()
+            response.raise_for_status()
+            data = response.json()
+            result = data if isinstance(data, dict) else {}
+            self._cache[cache_key] = result
+            return copy.deepcopy(result)
 
     def search_recordings(self, artist: str, title: str, limit: int = 10) -> JsonObject:
         query = f'artist:"{artist}" AND recording:"{title}"'
@@ -86,26 +90,24 @@ class ListenBrainzClient:
         self.base_url = base_url.rstrip("/")
         self.labs_base_url = labs_base_url.rstrip("/")
         self._cache: dict[tuple[str, tuple[tuple[str, str | int | float], ...]], JsonObject] = {}
+        self._lock = threading.RLock()
         self._client = httpx.Client(timeout=timeout, transport=transport)
 
     def _get(self, url: str, params: Mapping[str, str | int | float] | None = None) -> JsonObject:
         request_params = params or {}
         cache_key = (url, tuple(sorted(request_params.items())))
-        if cache_key in self._cache:
-            return dict(self._cache[cache_key])
-        response = self._client.get(url, params=request_params)
-        response.raise_for_status()
-        data = response.json()
-        result = data if isinstance(data, dict) else {}
-        self._cache[cache_key] = result
-        return dict(result)
+        with self._lock:
+            if cache_key in self._cache:
+                return copy.deepcopy(self._cache[cache_key])
+            response = self._client.get(url, params=request_params)
+            response.raise_for_status()
+            data = response.json()
+            result = data if isinstance(data, dict) else {}
+            self._cache[cache_key] = result
+            return copy.deepcopy(result)
 
     def similar_recordings(self, recording_mbid: str, limit: int = 25) -> JsonObject:
-        payload = self._get(f"{self.base_url}/recording/{recording_mbid}/similar-recordings")
-        recordings = payload.get("payload") if isinstance(payload.get("payload"), dict) else payload
-        if isinstance(recordings, dict) and isinstance(recordings.get("recordings"), list):
-            recordings["recordings"] = recordings["recordings"][:limit]
-        return payload
+        return self._get(f"{self.base_url}/recording/{recording_mbid}/similar-recordings")
 
     def metadata_lookup(self, artist: str, title: str) -> JsonObject:
         return self._get(
@@ -132,21 +134,23 @@ class AcousticBrainzClient:
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self._cache: dict[tuple[str, tuple[tuple[str, str | int | float], ...]], JsonObject] = {}
+        self._lock = threading.RLock()
         self._client = httpx.Client(base_url=self.base_url, timeout=timeout, transport=transport)
 
     def _get(self, path: str, params: Mapping[str, str | int | float] | None = None) -> JsonObject:
         request_params = params or {}
         cache_key = (path, tuple(sorted(request_params.items())))
-        if cache_key in self._cache:
-            return dict(self._cache[cache_key])
-        response = self._client.get(path, params=request_params)
-        if response.status_code == 404:
-            raise FileNotFoundError(path)
-        response.raise_for_status()
-        data = response.json()
-        result = data if isinstance(data, dict) else {}
-        self._cache[cache_key] = result
-        return dict(result)
+        with self._lock:
+            if cache_key in self._cache:
+                return copy.deepcopy(self._cache[cache_key])
+            response = self._client.get(path, params=request_params)
+            if response.status_code == 404:
+                raise FileNotFoundError(path)
+            response.raise_for_status()
+            data = response.json()
+            result = data if isinstance(data, dict) else {}
+            self._cache[cache_key] = result
+            return copy.deepcopy(result)
 
     def count(self, recording_mbid: str) -> int:
         data = self._get(f"/{recording_mbid}/count")

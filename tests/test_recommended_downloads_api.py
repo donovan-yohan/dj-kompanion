@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from server.app import app
+from server.app import app, get_recommendation_service
 from server.models import (
     CompatibilityStatus,
     ProviderSignals,
@@ -89,6 +90,23 @@ async def test_request_requires_seed(client: AsyncClient) -> None:
     response = await client.post("/api/recommended-downloads", json={})
 
     assert response.status_code == 422
+
+
+def test_recommended_downloads_route_is_sync_threadpool_safe() -> None:
+    route = next(route for route in app.routes if getattr(route, "path", None) == "/api/recommended-downloads")
+
+    assert not inspect.iscoroutinefunction(route.endpoint)
+
+
+def test_recommendation_service_is_reused_between_requests() -> None:
+    get_recommendation_service.cache_clear()
+    try:
+        first = get_recommendation_service()
+        second = get_recommendation_service()
+
+        assert first is second
+    finally:
+        get_recommendation_service.cache_clear()
 
 
 async def test_rejects_spotify_source(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:

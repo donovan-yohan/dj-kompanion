@@ -3,7 +3,11 @@ from __future__ import annotations
 import httpx
 
 from server.models import RecommendationSource, RecommendedDownloadFilters
-from server.recommendations.open_data_clients import AcousticBrainzClient, MusicBrainzClient
+from server.recommendations.open_data_clients import (
+    AcousticBrainzClient,
+    ListenBrainzClient,
+    MusicBrainzClient,
+)
 from server.recommendations.providers import AcousticBrainzProvider, ProviderSeed
 
 
@@ -23,6 +27,35 @@ def test_musicbrainz_client_sends_user_agent() -> None:
     client.search_recordings("Artist", "Title")
 
     assert seen_user_agent == "dj-kompanion-test/1.0 contact@example.com"
+
+
+def test_listenbrainz_similar_recordings_does_not_mutate_cached_payload() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={
+                "payload": {
+                    "recordings": [
+                        {"recording_mbid": "one"},
+                        {"recording_mbid": "two"},
+                        {"recording_mbid": "three"},
+                    ]
+                }
+            },
+        )
+
+    client = ListenBrainzClient(transport=httpx.MockTransport(handler))
+
+    first = client.similar_recordings("seed-mbid", limit=1)
+    second = client.similar_recordings("seed-mbid", limit=3)
+
+    assert calls == 1
+    assert len(first["payload"]["recordings"]) == 3
+    assert len(second["payload"]["recordings"]) == 3
 
 
 def test_acousticbrainz_404_is_non_blocking() -> None:

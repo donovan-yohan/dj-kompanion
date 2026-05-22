@@ -31,7 +31,7 @@ from server.recommendations.scoring import (
     score_candidate,
     stable_candidate_id,
 )
-from server.track_db import TrackRow, get_all_tracks, get_track
+from server.track_db import TrackRow, get_track, get_tracks_matching_terms
 
 
 class SeedNotFoundError(Exception):
@@ -102,7 +102,7 @@ class RecommendationService:
             warnings.append("all_provider_failures")
 
         merged_candidates = _merge_candidates(candidates)
-        local_tracks = get_all_tracks(self.db_path)
+        local_tracks = get_tracks_matching_terms(self.db_path, _candidate_search_terms(merged_candidates))
         existing = _existing_index(local_tracks)
         recommendations: list[RecommendedDownload] = []
         for candidate in merged_candidates:
@@ -233,6 +233,13 @@ def _existing_index(tracks: list[TrackRow]) -> dict[str, TrackRow]:
         artist, title = _artist_title_from_path(track.filepath)
         index[_text_key(artist, title)] = track
     return index
+
+
+def _candidate_search_terms(candidates: list[ProviderCandidate]) -> list[str]:
+    terms: list[str] = []
+    for candidate in candidates:
+        terms.extend([candidate.artist, candidate.title])
+    return _dedupe([normalize_artist_title(term) for term in terms if term])
 
 
 def _compatibility(

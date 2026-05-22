@@ -5,6 +5,7 @@ from pathlib import Path
 from server.analysis_store import save_analysis
 from server.models import (
     AnalysisResult,
+    CompatibilityStatus,
     RecommendationSource,
     RecommendedDownloadFilters,
     RecommendedDownloadsRequest,
@@ -187,6 +188,48 @@ def test_exclude_existing_default_and_false_penalizes(tmp_path: Path) -> None:
     assert excluded.recommendations == []
     assert len(included.recommendations) == 1
     assert included.recommendations[0].score_breakdown.dedupe_penalty == 1
+
+
+def test_service_does_not_load_entire_track_table_for_existing_checks(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    db_path, analysis_dir = _analyzed_track(tmp_path)
+    upsert_track(db_path, "/music/Candidate Artist - Candidate Title.m4a")
+
+    def fail_get_all_tracks(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("recommendation service should not scan the full track table")
+
+    monkeypatch.setattr("server.recommendations.service.get_all_tracks", fail_get_all_tracks, raising=False)
+    service = RecommendationService(
+        db_path=db_path,
+        analysis_dir=analysis_dir,
+        providers=[
+            StaticProvider(
+                RecommendationSource.musicbrainz,
+                ProviderResult(
+                    candidates=[
+                        ProviderCandidate(
+                            artist="Candidate Artist",
+                            title="Candidate Title",
+                            source=RecommendationSource.musicbrainz,
+                        )
+                    ],
+                    errors=[],
+                ),
+            )
+        ],
+    )
+
+    response = service.recommend(
+        RecommendedDownloadsRequest(
+            seed_filepath="/music/Seed Artist - Seed Title.m4a",
+            filters=RecommendedDownloadFilters(exclude_existing=False),
+        )
+    )
+
+    assert len(response.recommendations) == 1
+    assert response.recommendations[0].compatibility.status == CompatibilityStatus.local_analysis_missing
 
 
 def test_provider_bpm_key_do_not_claim_final_compatibility(tmp_path: Path) -> None:

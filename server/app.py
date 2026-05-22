@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
@@ -260,6 +261,7 @@ async def resolve_playlist_endpoint(req: ResolvePlaylistRequest) -> ResolvePlayl
     )
 
 
+@lru_cache(maxsize=1)
 def get_recommendation_service() -> RecommendationService:
     cfg = load_config()
     return RecommendationService(
@@ -274,7 +276,7 @@ def get_recommendation_service() -> RecommendationService:
 
 
 @app.post("/api/recommended-downloads", response_model=RecommendedDownloadsResponse)
-async def recommended_downloads_endpoint(
+def recommended_downloads_endpoint(
     req: RecommendedDownloadsRequest,
 ) -> RecommendedDownloadsResponse:
     service = get_recommendation_service()

@@ -113,6 +113,31 @@ def get_all_tracks(db_path: Path) -> list[TrackRow]:
     return [_row_to_track(r) for r in rows]
 
 
+def get_tracks_matching_terms(db_path: Path, terms: list[str]) -> list[TrackRow]:
+    """Return tracks whose filepath contains any candidate identity term.
+
+    The recommendation service only needs to know whether returned candidates
+    already exist locally. Querying likely matches keeps this bounded by the
+    candidate set instead of scanning every library row per request.
+    """
+    normalized_terms = [term.strip().lower() for term in terms if term.strip()]
+    if not normalized_terms:
+        return []
+    clauses = " OR ".join("lower(filepath) LIKE ? ESCAPE '\\'" for _ in normalized_terms)
+    params = [_like_pattern(term) for term in normalized_terms]
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM tracks WHERE {clauses} ORDER BY created_at DESC",  # noqa: S608
+            params,
+        ).fetchall()
+    return [_row_to_track(r) for r in rows]
+
+
+def _like_pattern(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 def get_pending_analysis(db_path: Path) -> list[TrackRow]:
     with _connect(db_path) as conn:
         rows = conn.execute("SELECT * FROM tracks WHERE status = 'downloaded'").fetchall()
