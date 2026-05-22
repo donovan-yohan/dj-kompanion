@@ -166,38 +166,44 @@ class ListenBrainzProvider:
                 payload = self.client.similar_recordings(seed.recording_mbid, limit=limit)
             else:
                 payload = self.client.metadata_lookup(seed.artist, seed.title)
+            errors: list[ProviderError] = []
         except Exception as exc:
-            return ProviderResult(
-                candidates=[],
-                errors=[ProviderError(source=self.source, error=str(exc), retryable=True)],
-            )
+            errors = [ProviderError(source=self.source, error=str(exc), retryable=True)]
+            try:
+                payload = self.client.sitewide_recordings(count=limit)
+            except Exception as fallback_exc:
+                errors.append(ProviderError(source=self.source, error=str(fallback_exc), retryable=True))
+                return ProviderResult(candidates=[], errors=errors)
         recordings = payload.get("recordings") or payload.get("payload") or []
         if isinstance(recordings, dict):
             recordings = recordings.get("recordings", [])
         if not isinstance(recordings, list):
-            return ProviderResult(candidates=[], errors=[])
+            return ProviderResult(candidates=[], errors=errors)
         candidates: list[ProviderCandidate] = []
         for item in recordings[:limit]:
             if not isinstance(item, dict):
                 continue
-            title_value = item.get("recording_name") or item.get("title")
+            title_value = item.get("recording_name") or item.get("track_name") or item.get("title")
             artist_value = item.get("artist_name") or item.get("artist_credit_name")
             if not isinstance(title_value, str) or not isinstance(artist_value, str):
                 continue
             mbid_value = item.get("recording_mbid") or item.get("recording_msid")
             mbid = mbid_value if isinstance(mbid_value, str) else None
+            release_mbid_value = item.get("release_mbid")
+            release_mbid = release_mbid_value if isinstance(release_mbid_value, str) else None
             candidates.append(
                 ProviderCandidate(
                     artist=artist_value,
                     title=title_value,
                     recording_mbid=mbid,
+                    release_mbid=release_mbid,
                     source_urls={"listenbrainz": "https://listenbrainz.org/"},
                     source=self.source,
                     source_confidence=0.7 if mbid else 0.45,
                     metadata_similarity=0.65,
                 )
             )
-        return ProviderResult(candidates=candidates, errors=[])
+        return ProviderResult(candidates=candidates, errors=errors)
 
 
 class AcousticBrainzProvider:

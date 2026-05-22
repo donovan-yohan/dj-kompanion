@@ -94,6 +94,10 @@ class RecommendationService:
                     errors=[ProviderError(source=provider.source, error=str(exc), retryable=True)],
                 )
             provider_errors.extend(result.errors)
+            if seed.recording_mbid is None and provider.source == RecommendationSource.musicbrainz:
+                seed_mbid = _seed_identity_mbid(seed, result.candidates)
+                if seed_mbid:
+                    seed = replace(seed, recording_mbid=seed_mbid)
             if result.candidates:
                 sources_used.append(provider.source)
                 candidates.extend(result.candidates)
@@ -170,6 +174,17 @@ def _artist_title_from_path(filepath: str) -> tuple[str, str]:
         artist, title = stem.split(" - ", 1)
         return artist.strip() or "Unknown Artist", title.strip() or stem
     return "Unknown Artist", stem
+
+
+def _seed_identity_mbid(seed: ProviderSeed, candidates: list[ProviderCandidate]) -> str | None:
+    seed_key = _text_key(seed.artist, seed.title)
+    for candidate in candidates:
+        if candidate.recording_mbid and _text_key(candidate.artist, candidate.title) == seed_key:
+            return candidate.recording_mbid
+    for candidate in candidates:
+        if candidate.recording_mbid:
+            return candidate.recording_mbid
+    return None
 
 
 def _merge_candidates(candidates: list[ProviderCandidate]) -> list[ProviderCandidate]:

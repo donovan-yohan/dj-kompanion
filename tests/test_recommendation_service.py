@@ -20,8 +20,10 @@ class StaticProvider:
     def __init__(self, source: RecommendationSource, result: ProviderResult | Exception) -> None:
         self.source = source
         self.result = result
+        self.seeds: list[object] = []
 
     def fetch(self, seed, filters, limit):  # type: ignore[no-untyped-def]
+        self.seeds.append(seed)
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -99,6 +101,54 @@ def test_all_provider_failures_returns_empty_with_errors(tmp_path: Path) -> None
     assert response.recommendations == []
     assert response.provider_errors[0].source == RecommendationSource.musicbrainz
     assert "all_provider_failures" in response.warnings
+
+
+def test_musicbrainz_identity_enriches_seed_for_downstream_providers(tmp_path: Path) -> None:
+    db_path, analysis_dir = _analyzed_track(tmp_path)
+    musicbrainz = StaticProvider(
+        RecommendationSource.musicbrainz,
+        ProviderResult(
+            candidates=[
+                ProviderCandidate(
+                    artist="Seed Artist",
+                    title="Seed Title",
+                    recording_mbid="seed-recording-mbid",
+                    source=RecommendationSource.musicbrainz,
+                    source_confidence=0.9,
+                    metadata_similarity=0.95,
+                )
+            ],
+            errors=[],
+        ),
+    )
+    listenbrainz = StaticProvider(
+        RecommendationSource.listenbrainz,
+        ProviderResult(
+            candidates=[
+                ProviderCandidate(
+                    artist="Recommended Artist",
+                    title="Recommended Title",
+                    recording_mbid="recommended-mbid",
+                    source=RecommendationSource.listenbrainz,
+                    source_confidence=0.7,
+                    metadata_similarity=0.6,
+                )
+            ],
+            errors=[],
+        ),
+    )
+    service = RecommendationService(
+        db_path=db_path,
+        analysis_dir=analysis_dir,
+        providers=[musicbrainz, listenbrainz],
+    )
+
+    response = service.recommend(
+        RecommendedDownloadsRequest(seed_filepath="/music/Seed Artist - Seed Title.m4a")
+    )
+
+    assert listenbrainz.seeds[0].recording_mbid == "seed-recording-mbid"
+    assert [rec.title for rec in response.recommendations] == ["Recommended Title"]
 
 
 def test_dedupe_by_mbid_then_normalized_text(tmp_path: Path) -> None:

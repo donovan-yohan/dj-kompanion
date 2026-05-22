@@ -33,6 +33,7 @@ class MusicBrainzClient:
             timeout=timeout,
             transport=transport,
             headers={"User-Agent": user_agent},
+            follow_redirects=True,
         )
 
     def _request(self, path: str, params: Mapping[str, str | int | float]) -> JsonObject:
@@ -91,7 +92,7 @@ class ListenBrainzClient:
         self.labs_base_url = labs_base_url.rstrip("/")
         self._cache: dict[tuple[str, tuple[tuple[str, str | int | float], ...]], JsonObject] = {}
         self._lock = threading.RLock()
-        self._client = httpx.Client(timeout=timeout, transport=transport)
+        self._client = httpx.Client(timeout=timeout, transport=transport, follow_redirects=True)
 
     def _get(self, url: str, params: Mapping[str, str | int | float] | None = None) -> JsonObject:
         request_params = params or {}
@@ -107,7 +108,7 @@ class ListenBrainzClient:
             return copy.deepcopy(result)
 
     def similar_recordings(self, recording_mbid: str, limit: int = 25) -> JsonObject:
-        return self._get(f"{self.base_url}/recording/{recording_mbid}/similar-recordings")
+        return self._get(f"{self.base_url}/recording/{recording_mbid}/similar-recordings/")
 
     def metadata_lookup(self, artist: str, title: str) -> JsonObject:
         return self._get(
@@ -135,7 +136,12 @@ class AcousticBrainzClient:
         self.base_url = base_url.rstrip("/")
         self._cache: dict[tuple[str, tuple[tuple[str, str | int | float], ...]], JsonObject] = {}
         self._lock = threading.RLock()
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout, transport=transport)
+        self._client = httpx.Client(
+            base_url=self.base_url,
+            timeout=timeout,
+            transport=transport,
+            follow_redirects=True,
+        )
 
     def _get(self, path: str, params: Mapping[str, str | int | float] | None = None) -> JsonObject:
         request_params = params or {}
