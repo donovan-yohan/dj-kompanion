@@ -20,6 +20,7 @@ class StaticProvider:
     def __init__(self, source: RecommendationSource, result: ProviderResult | Exception) -> None:
         self.source = source
         self.result = result
+        self.identity_only = False
         self.seeds: list[object] = []
 
     def fetch(self, seed, filters, limit):  # type: ignore[no-untyped-def]
@@ -214,6 +215,64 @@ def test_listenbrainz_retries_alternate_musicbrainz_seed_identity(tmp_path: Path
 
     assert [seed.recording_mbid for seed in listenbrainz.seeds] == ["wrong-seed-mbid", "right-seed-mbid"]
     assert [rec.title for rec in response.recommendations] == ["Recommended Title"]
+
+
+def test_musicbrainz_provider_candidates_are_identity_only(tmp_path: Path) -> None:
+    db_path, analysis_dir = _analyzed_track(tmp_path)
+    musicbrainz = StaticProvider(
+        RecommendationSource.musicbrainz,
+        ProviderResult(
+            candidates=[
+                ProviderCandidate(
+                    artist="Seed Artist",
+                    title="Seed Title Remix",
+                    recording_mbid="seed-remix-mbid",
+                    source=RecommendationSource.musicbrainz,
+                )
+            ],
+            errors=[],
+        ),
+    )
+    musicbrainz.identity_only = True
+    service = RecommendationService(db_path=db_path, analysis_dir=analysis_dir, providers=[musicbrainz])
+
+    response = service.recommend(
+        RecommendedDownloadsRequest(seed_filepath="/music/Seed Artist - Seed Title.m4a")
+    )
+
+    assert response.recommendations == []
+    assert response.sources_used == []
+
+
+def test_seed_variant_filter_handles_featured_artists_and_edits(tmp_path: Path) -> None:
+    db_path, analysis_dir = _analyzed_track(tmp_path, filepath="/music/Peggy Gou - (It Goes Like) Nanana.m4a")
+    provider = StaticProvider(
+        RecommendationSource.listenbrainz,
+        ProviderResult(
+            candidates=[
+                ProviderCandidate(
+                    artist="Peggy Gou & Sammy Virji",
+                    title="It Goes Like (Nanana) (Sammy Virji Edit)",
+                    recording_mbid="same-track-edit",
+                    source=RecommendationSource.listenbrainz,
+                ),
+                ProviderCandidate(
+                    artist="cassö, RAYE, D-Block Europe",
+                    title="Prada",
+                    recording_mbid="actual-rec",
+                    source=RecommendationSource.listenbrainz,
+                ),
+            ],
+            errors=[],
+        ),
+    )
+    service = RecommendationService(db_path=db_path, analysis_dir=analysis_dir, providers=[provider])
+
+    response = service.recommend(
+        RecommendedDownloadsRequest(seed_filepath="/music/Peggy Gou - (It Goes Like) Nanana.m4a")
+    )
+
+    assert [rec.title for rec in response.recommendations] == ["Prada"]
 
 
 def test_dedupe_by_mbid_then_normalized_text(tmp_path: Path) -> None:

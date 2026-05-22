@@ -94,6 +94,60 @@ def test_listenbrainz_provider_uses_labs_similar_recordings() -> None:
     assert result.errors == []
 
 
+def test_listenbrainz_provider_falls_back_to_labs_recording_search() -> None:
+    seen_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_paths.append(request.url.path)
+        if request.url.path.endswith("/similar-recordings/json"):
+            if request.url.params["recording_mbids"] == "wrong-seed-mbid":
+                return httpx.Response(200, json=[])
+            assert request.url.params["recording_mbids"] == "canonical-seed-mbid"
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "artist_credit_name": "Similar Artist",
+                        "recording_name": "Similar Track",
+                        "recording_mbid": "similar-mbid",
+                    }
+                ],
+            )
+        assert request.url.path.endswith("/recording-search/json")
+        assert request.url.params["query"] == "Daft Punk One More Time"
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "artist_credit_name": "Daft Punk",
+                    "recording_name": "One More Time",
+                    "recording_mbid": "canonical-seed-mbid",
+                }
+            ],
+        )
+
+    provider = ListenBrainzProvider(ListenBrainzClient(transport=httpx.MockTransport(handler)))
+
+    result = provider.fetch(
+        ProviderSeed(
+            filepath="/music/Daft Punk - One More Time.m4a",
+            artist="Daft Punk",
+            title="One More Time",
+            recording_mbid="wrong-seed-mbid",
+        ),
+        RecommendedDownloadFilters(),
+        limit=3,
+    )
+
+    assert seen_paths == [
+        "/similar-recordings/json",
+        "/recording-search/json",
+        "/similar-recordings/json",
+    ]
+    assert result.errors == []
+    assert [candidate.title for candidate in result.candidates] == ["Similar Track"]
+
+
 def test_acousticbrainz_404_is_non_blocking() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404, json={"error": "not found"})

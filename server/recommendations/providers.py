@@ -91,8 +91,36 @@ def _names_from_items(recording: Mapping[str, object], field_name: str) -> list[
     return names
 
 
+def _payload_recordings(payload: Mapping[str, object]) -> list[Mapping[str, object]]:
+    recordings = payload.get("recordings") or payload.get("payload") or []
+    if isinstance(recordings, dict):
+        recordings = recordings.get("recordings", [])
+    if not isinstance(recordings, list):
+        return []
+    return [item for item in recordings if isinstance(item, dict)]
+
+
+def _simple_text(value: str) -> str:
+    return " ".join("".join(ch.lower() if ch.isalnum() else " " for ch in value).split())
+
+
+def _is_seed_recording_match(seed: ProviderSeed, recording: Mapping[str, object]) -> bool:
+    title = recording.get("recording_name") or recording.get("track_name") or recording.get("title")
+    artist = recording.get("artist_credit_name") or recording.get("artist_name")
+    if not isinstance(title, str) or not isinstance(artist, str):
+        return False
+    seed_title = _simple_text(seed.title)
+    recording_title = _simple_text(title)
+    seed_artist = _simple_text(seed.artist)
+    recording_artist = _simple_text(artist)
+    return seed_title == recording_title and (
+        seed_artist == recording_artist or seed_artist in recording_artist or recording_artist in seed_artist
+    )
+
+
 class MusicBrainzProvider:
     source = RecommendationSource.musicbrainz
+    identity_only = True
 
     def __init__(self, client: MusicBrainzClient) -> None:
         self.client = client
@@ -164,18 +192,16 @@ class ListenBrainzProvider:
         try:
             if seed.recording_mbid:
                 payload = self.client.similar_recordings(seed.recording_mbid, limit=limit)
+                if not _payload_recordings(payload):
+                    payload = self._similar_recordings_from_labs_search(seed, limit)
             else:
-                payload = self.client.metadata_lookup(seed.artist, seed.title)
+                payload = self._similar_recordings_from_labs_search(seed, limit)
         except Exception as exc:
             return ProviderResult(
                 candidates=[],
                 errors=[ProviderError(source=self.source, error=str(exc), retryable=True)],
             )
-        recordings = payload.get("recordings") or payload.get("payload") or []
-        if isinstance(recordings, dict):
-            recordings = recordings.get("recordings", [])
-        if not isinstance(recordings, list):
-            return ProviderResult(candidates=[], errors=[])
+        recordings = _payload_recordings(payload)
         candidates: list[ProviderCandidate] = []
         for item in recordings[:limit]:
             if not isinstance(item, dict):
@@ -201,6 +227,19 @@ class ListenBrainzProvider:
                 )
             )
         return ProviderResult(candidates=candidates, errors=[])
+
+    def _similar_recordings_from_labs_search(self, seed: ProviderSeed, limit: int) -> dict[str, object]:
+        search_payload = self.client.recording_search(seed.artist, seed.title, limit=10)
+        for item in _payload_recordings(search_payload):
+            if not _is_seed_recording_match(seed, item):
+                continue
+            mbid_value = item.get("recording_mbid") if isinstance(item, dict) else None
+            if not isinstance(mbid_value, str) or mbid_value == seed.recording_mbid:
+                continue
+            payload = self.client.similar_recordings(mbid_value, limit=limit)
+            if _payload_recordings(payload):
+                return payload
+        return {"recordings": []}
 
 
 class AcousticBrainzProvider:

@@ -87,8 +87,13 @@ class RecommendationService:
         for provider in self.providers:
             if provider.source not in requested_sources:
                 continue
+            provider_limit = (
+                max(request.limit, 25)
+                if provider.source == RecommendationSource.musicbrainz
+                else request.limit
+            )
             try:
-                result = provider.fetch(seed, request.filters, request.limit)
+                result = provider.fetch(seed, request.filters, provider_limit)
             except Exception as exc:
                 result = ProviderResult(
                     candidates=[],
@@ -107,7 +112,7 @@ class RecommendationService:
                     result,
                 )
             provider_errors.extend(result.errors)
-            if result.candidates:
+            if result.candidates and not getattr(provider, "identity_only", False):
                 sources_used.append(provider.source)
                 candidates.extend(result.candidates)
 
@@ -294,7 +299,12 @@ def _candidate_search_terms(candidates: list[ProviderCandidate]) -> list[str]:
 def _is_seed_variant(seed: ProviderSeed, candidate: ProviderCandidate) -> bool:
     seed_artist = normalize_artist_title(seed.artist)
     candidate_artist = normalize_artist_title(candidate.artist)
-    if seed_artist != candidate_artist:
+    artist_related = (
+        seed_artist == candidate_artist
+        or seed_artist in candidate_artist
+        or candidate_artist in seed_artist
+    )
+    if not artist_related:
         return False
     seed_title = normalize_artist_title(seed.title)
     candidate_title = normalize_artist_title(candidate.title)

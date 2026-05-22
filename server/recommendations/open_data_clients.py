@@ -132,6 +132,25 @@ class ListenBrainzClient:
                 return {"recordings": copy.deepcopy(cached_recordings[:limit])}
             return {"recordings": []}
 
+    def recording_search(self, artist: str, title: str, limit: int = 10) -> JsonObject:
+        url = f"{self.labs_base_url}/recording-search/json"
+        params = {"query": f"{artist} {title}"}
+        cache_key = (url, tuple(sorted(params.items())))
+        with self._lock:
+            if cache_key in self._cache:
+                payload = copy.deepcopy(self._cache[cache_key])
+            else:
+                response = self._client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                response_recordings = data if isinstance(data, list) else []
+                payload = {"recordings": response_recordings}
+                self._cache[cache_key] = payload
+            cached_recordings = payload.get("recordings")
+            if isinstance(cached_recordings, list):
+                return {"recordings": copy.deepcopy(cached_recordings[:limit])}
+            return {"recordings": []}
+
     def metadata_lookup(self, artist: str, title: str) -> JsonObject:
         return self._get(
             f"{self.base_url}/metadata/lookup/",
