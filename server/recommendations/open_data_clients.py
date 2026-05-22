@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 JsonObject = dict[str, Any]
+DEFAULT_SIMILAR_RECORDINGS_ALGORITHM = "session_based_days_180_session_300_contribution_5_threshold_15_limit_50_skip_30"
 
 
 class MusicBrainzClient:
@@ -87,9 +88,11 @@ class ListenBrainzClient:
         labs_base_url: str = "https://labs.api.listenbrainz.org",
         timeout: float = 10.0,
         transport: httpx.BaseTransport | None = None,
+        similar_recordings_algorithm: str = DEFAULT_SIMILAR_RECORDINGS_ALGORITHM,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.labs_base_url = labs_base_url.rstrip("/")
+        self.similar_recordings_algorithm = similar_recordings_algorithm
         self._cache: dict[tuple[str, tuple[tuple[str, str | int | float], ...]], JsonObject] = {}
         self._lock = threading.RLock()
         self._client = httpx.Client(timeout=timeout, transport=transport, follow_redirects=True)
@@ -108,7 +111,26 @@ class ListenBrainzClient:
             return copy.deepcopy(result)
 
     def similar_recordings(self, recording_mbid: str, limit: int = 25) -> JsonObject:
-        return self._get(f"{self.base_url}/recording/{recording_mbid}/similar-recordings/")
+        url = f"{self.labs_base_url}/similar-recordings/json"
+        params = {
+            "recording_mbids": recording_mbid,
+            "algorithm": self.similar_recordings_algorithm,
+        }
+        cache_key = (url, tuple(sorted(params.items())))
+        with self._lock:
+            if cache_key in self._cache:
+                payload = copy.deepcopy(self._cache[cache_key])
+            else:
+                response = self._client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                response_recordings = data if isinstance(data, list) else []
+                payload = {"recordings": response_recordings}
+                self._cache[cache_key] = payload
+            cached_recordings = payload.get("recordings")
+            if isinstance(cached_recordings, list):
+                return {"recordings": copy.deepcopy(cached_recordings[:limit])}
+            return {"recordings": []}
 
     def metadata_lookup(self, artist: str, title: str) -> JsonObject:
         return self._get(

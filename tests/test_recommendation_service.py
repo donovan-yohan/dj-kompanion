@@ -116,7 +116,15 @@ def test_musicbrainz_identity_enriches_seed_for_downstream_providers(tmp_path: P
                     source=RecommendationSource.musicbrainz,
                     source_confidence=0.9,
                     metadata_similarity=0.95,
-                )
+                ),
+                ProviderCandidate(
+                    artist="Seed Artist",
+                    title="Seed Title Remix",
+                    recording_mbid="seed-remix-mbid",
+                    source=RecommendationSource.musicbrainz,
+                    source_confidence=0.8,
+                    metadata_similarity=0.75,
+                ),
             ],
             errors=[],
         ),
@@ -148,6 +156,63 @@ def test_musicbrainz_identity_enriches_seed_for_downstream_providers(tmp_path: P
     )
 
     assert listenbrainz.seeds[0].recording_mbid == "seed-recording-mbid"
+    assert [rec.title for rec in response.recommendations] == ["Recommended Title"]
+
+
+def test_listenbrainz_retries_alternate_musicbrainz_seed_identity(tmp_path: Path) -> None:
+    class AlternateSeedProvider(StaticProvider):
+        def fetch(self, seed, filters, limit):  # type: ignore[no-untyped-def]
+            self.seeds.append(seed)
+            if seed.recording_mbid == "wrong-seed-mbid":
+                return ProviderResult(candidates=[], errors=[])
+            return ProviderResult(
+                candidates=[
+                    ProviderCandidate(
+                        artist="Recommended Artist",
+                        title="Recommended Title",
+                        recording_mbid="recommended-mbid",
+                        source=RecommendationSource.listenbrainz,
+                    )
+                ],
+                errors=[],
+            )
+
+    db_path, analysis_dir = _analyzed_track(tmp_path)
+    musicbrainz = StaticProvider(
+        RecommendationSource.musicbrainz,
+        ProviderResult(
+            candidates=[
+                ProviderCandidate(
+                    artist="Seed Artist",
+                    title="Seed Title",
+                    recording_mbid="wrong-seed-mbid",
+                    source=RecommendationSource.musicbrainz,
+                ),
+                ProviderCandidate(
+                    artist="Seed Artist",
+                    title="Seed Title",
+                    recording_mbid="right-seed-mbid",
+                    source=RecommendationSource.musicbrainz,
+                ),
+            ],
+            errors=[],
+        ),
+    )
+    listenbrainz = AlternateSeedProvider(
+        RecommendationSource.listenbrainz,
+        ProviderResult(candidates=[], errors=[]),
+    )
+    service = RecommendationService(
+        db_path=db_path,
+        analysis_dir=analysis_dir,
+        providers=[musicbrainz, listenbrainz],
+    )
+
+    response = service.recommend(
+        RecommendedDownloadsRequest(seed_filepath="/music/Seed Artist - Seed Title.m4a")
+    )
+
+    assert [seed.recording_mbid for seed in listenbrainz.seeds] == ["wrong-seed-mbid", "right-seed-mbid"]
     assert [rec.title for rec in response.recommendations] == ["Recommended Title"]
 
 

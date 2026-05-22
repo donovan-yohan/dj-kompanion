@@ -166,19 +166,16 @@ class ListenBrainzProvider:
                 payload = self.client.similar_recordings(seed.recording_mbid, limit=limit)
             else:
                 payload = self.client.metadata_lookup(seed.artist, seed.title)
-            errors: list[ProviderError] = []
         except Exception as exc:
-            errors = [ProviderError(source=self.source, error=str(exc), retryable=True)]
-            try:
-                payload = self.client.sitewide_recordings(count=limit)
-            except Exception as fallback_exc:
-                errors.append(ProviderError(source=self.source, error=str(fallback_exc), retryable=True))
-                return ProviderResult(candidates=[], errors=errors)
+            return ProviderResult(
+                candidates=[],
+                errors=[ProviderError(source=self.source, error=str(exc), retryable=True)],
+            )
         recordings = payload.get("recordings") or payload.get("payload") or []
         if isinstance(recordings, dict):
             recordings = recordings.get("recordings", [])
         if not isinstance(recordings, list):
-            return ProviderResult(candidates=[], errors=errors)
+            return ProviderResult(candidates=[], errors=[])
         candidates: list[ProviderCandidate] = []
         for item in recordings[:limit]:
             if not isinstance(item, dict):
@@ -203,7 +200,7 @@ class ListenBrainzProvider:
                     metadata_similarity=0.65,
                 )
             )
-        return ProviderResult(candidates=candidates, errors=errors)
+        return ProviderResult(candidates=candidates, errors=[])
 
 
 class AcousticBrainzProvider:

@@ -83,6 +83,7 @@ class RecommendationService:
         candidates: list[ProviderCandidate] = []
         sources_used: list[RecommendationSource] = []
         requested_sources = set(request.sources)
+        seed_recording_mbid_candidates: list[str] = []
         for provider in self.providers:
             if provider.source not in requested_sources:
                 continue
@@ -93,11 +94,19 @@ class RecommendationService:
                     candidates=[],
                     errors=[ProviderError(source=provider.source, error=str(exc), retryable=True)],
                 )
-            provider_errors.extend(result.errors)
             if seed.recording_mbid is None and provider.source == RecommendationSource.musicbrainz:
-                seed_mbid = _seed_identity_mbid(seed, result.candidates)
-                if seed_mbid:
-                    seed = replace(seed, recording_mbid=seed_mbid)
+                seed_recording_mbid_candidates = _seed_identity_mbids(seed, result.candidates)
+                if seed_recording_mbid_candidates:
+                    seed = replace(seed, recording_mbid=seed_recording_mbid_candidates[0])
+            if provider.source == RecommendationSource.listenbrainz and not result.candidates:
+                result, seed = _retry_listenbrainz_with_alternate_seed_mbids(
+                    provider,
+                    seed,
+                    seed_recording_mbid_candidates,
+                    request,
+                    result,
+                )
+            provider_errors.extend(result.errors)
             if result.candidates:
                 sources_used.append(provider.source)
                 candidates.extend(result.candidates)
@@ -110,6 +119,8 @@ class RecommendationService:
         existing = _existing_index(local_tracks)
         recommendations: list[RecommendedDownload] = []
         for candidate in merged_candidates:
+            if _is_seed_variant(seed, candidate):
+                continue
             candidate_id = stable_candidate_id(candidate)
             candidate_text_key = _text_key(candidate.artist, candidate.title)
             local_track = existing.get(candidate_id) or existing.get(candidate_text_key)
@@ -176,15 +187,38 @@ def _artist_title_from_path(filepath: str) -> tuple[str, str]:
     return "Unknown Artist", stem
 
 
-def _seed_identity_mbid(seed: ProviderSeed, candidates: list[ProviderCandidate]) -> str | None:
+def _seed_identity_mbids(seed: ProviderSeed, candidates: list[ProviderCandidate]) -> list[str]:
     seed_key = _text_key(seed.artist, seed.title)
-    for candidate in candidates:
-        if candidate.recording_mbid and _text_key(candidate.artist, candidate.title) == seed_key:
-            return candidate.recording_mbid
-    for candidate in candidates:
-        if candidate.recording_mbid:
-            return candidate.recording_mbid
-    return None
+    exact = [
+        candidate.recording_mbid
+        for candidate in candidates
+        if candidate.recording_mbid and _text_key(candidate.artist, candidate.title) == seed_key
+    ]
+    fallback = [candidate.recording_mbid for candidate in candidates if candidate.recording_mbid]
+    return _dedupe([mbid for mbid in exact + fallback if mbid])
+
+
+def _retry_listenbrainz_with_alternate_seed_mbids(
+    provider: RecommendationProvider,
+    seed: ProviderSeed,
+    seed_recording_mbid_candidates: list[str],
+    request: RecommendedDownloadsRequest,
+    first_result: ProviderResult,
+) -> tuple[ProviderResult, ProviderSeed]:
+    errors = list(first_result.errors)
+    for recording_mbid in seed_recording_mbid_candidates:
+        if recording_mbid == seed.recording_mbid:
+            continue
+        retry_seed = replace(seed, recording_mbid=recording_mbid)
+        try:
+            retry_result = provider.fetch(retry_seed, request.filters, request.limit)
+        except Exception as exc:
+            errors.append(ProviderError(source=provider.source, error=str(exc), retryable=True))
+            continue
+        errors.extend(retry_result.errors)
+        if retry_result.candidates:
+            return ProviderResult(candidates=retry_result.candidates, errors=errors), retry_seed
+    return ProviderResult(candidates=first_result.candidates, errors=errors), seed
 
 
 def _merge_candidates(candidates: list[ProviderCandidate]) -> list[ProviderCandidate]:
@@ -255,6 +289,16 @@ def _candidate_search_terms(candidates: list[ProviderCandidate]) -> list[str]:
     for candidate in candidates:
         terms.extend([candidate.artist, candidate.title])
     return _dedupe([normalize_artist_title(term) for term in terms if term])
+
+
+def _is_seed_variant(seed: ProviderSeed, candidate: ProviderCandidate) -> bool:
+    seed_artist = normalize_artist_title(seed.artist)
+    candidate_artist = normalize_artist_title(candidate.artist)
+    if seed_artist != candidate_artist:
+        return False
+    seed_title = normalize_artist_title(seed.title)
+    candidate_title = normalize_artist_title(candidate.title)
+    return seed_title == candidate_title or seed_title in candidate_title or candidate_title in seed_title
 
 
 def _compatibility(

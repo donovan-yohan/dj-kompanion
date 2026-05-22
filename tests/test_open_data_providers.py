@@ -39,18 +39,15 @@ def test_listenbrainz_similar_recordings_does_not_mutate_cached_payload() -> Non
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
-        assert request.url.path.endswith("/similar-recordings/")
+        assert request.url.path.endswith("/similar-recordings/json")
+        assert request.url.params["recording_mbids"] == "seed-mbid"
         return httpx.Response(
             200,
-            json={
-                "payload": {
-                    "recordings": [
-                        {"recording_mbid": "one"},
-                        {"recording_mbid": "two"},
-                        {"recording_mbid": "three"},
-                    ]
-                }
-            },
+            json=[
+                {"recording_mbid": "one", "recording_name": "One", "artist_credit_name": "Artist"},
+                {"recording_mbid": "two", "recording_name": "Two", "artist_credit_name": "Artist"},
+                {"recording_mbid": "three", "recording_name": "Three", "artist_credit_name": "Artist"},
+            ],
         )
 
     client = ListenBrainzClient(transport=httpx.MockTransport(handler))
@@ -59,29 +56,23 @@ def test_listenbrainz_similar_recordings_does_not_mutate_cached_payload() -> Non
     second = client.similar_recordings("seed-mbid", limit=3)
 
     assert calls == 1
-    assert len(first["payload"]["recordings"]) == 3
-    assert len(second["payload"]["recordings"]) == 3
+    assert len(first["recordings"]) == 1
+    assert len(second["recordings"]) == 3
 
 
-def test_listenbrainz_provider_falls_back_to_sitewide_recordings() -> None:
+def test_listenbrainz_provider_uses_labs_similar_recordings() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/similar-recordings/"):
-            return httpx.Response(404, json={"error": "not found"})
-        assert request.url.path.endswith("/stats/sitewide/recordings")
+        assert request.url.path.endswith("/similar-recordings/json")
         return httpx.Response(
             200,
-            json={
-                "payload": {
-                    "recordings": [
-                        {
-                            "artist_name": "Fallback Artist",
-                            "track_name": "Fallback Track",
-                            "recording_mbid": "fallback-mbid",
-                            "release_mbid": "fallback-release",
-                        }
-                    ]
+            json=[
+                {
+                    "artist_credit_name": "Similar Artist",
+                    "recording_name": "Similar Track",
+                    "recording_mbid": "similar-mbid",
+                    "release_mbid": "similar-release",
                 }
-            },
+            ],
         )
 
     provider = ListenBrainzProvider(ListenBrainzClient(transport=httpx.MockTransport(handler)))
@@ -98,9 +89,9 @@ def test_listenbrainz_provider_falls_back_to_sitewide_recordings() -> None:
     )
 
     assert len(result.candidates) == 1
-    assert result.candidates[0].artist == "Fallback Artist"
-    assert result.candidates[0].title == "Fallback Track"
-    assert result.errors[0].source == RecommendationSource.listenbrainz
+    assert result.candidates[0].artist == "Similar Artist"
+    assert result.candidates[0].title == "Similar Track"
+    assert result.errors == []
 
 
 def test_acousticbrainz_404_is_non_blocking() -> None:
