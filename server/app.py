@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
@@ -23,12 +24,30 @@ from server.models import (
     PlaylistTrack,
     ReanalyzeRequest,
     ReanalyzeResponse,
+    RecommendationSeed,
+    RecommendedDownloadsRequest,
+    RecommendedDownloadsResponse,
     ResolvePlaylistRequest,
     ResolvePlaylistResponse,
     RetagRequest,
     RetagResponse,
     TracksResponse,
     TrackStatus,
+)
+from server.recommendations.open_data_clients import (
+    AcousticBrainzClient,
+    ListenBrainzClient,
+    MusicBrainzClient,
+)
+from server.recommendations.providers import (
+    AcousticBrainzProvider,
+    ListenBrainzProvider,
+    MusicBrainzProvider,
+)
+from server.recommendations.service import (
+    RecommendationService,
+    SeedAnalysisRequiredError,
+    SeedNotFoundError,
 )
 from server.tagger import TaggingError, build_download_filename, tag_file
 from server.track_db import get_all_tracks, get_track, init_db, upsert_track
@@ -240,6 +259,50 @@ async def resolve_playlist_endpoint(req: ResolvePlaylistRequest) -> ResolvePlayl
         playlist_title=playlist_title,
         tracks=[PlaylistTrack(url=url, title=title) for url, title in tracks],
     )
+
+
+@lru_cache(maxsize=1)
+def get_recommendation_service() -> RecommendationService:
+    cfg = load_config()
+    return RecommendationService(
+        db_path=CONFIG_DIR / "tracks.db",
+        analysis_dir=CONFIG_DIR / "analysis",
+        providers=[
+            MusicBrainzProvider(MusicBrainzClient(cfg.metadata_lookup.musicbrainz_user_agent)),
+            ListenBrainzProvider(ListenBrainzClient()),
+            AcousticBrainzProvider(AcousticBrainzClient()),
+        ],
+    )
+
+
+@app.post("/api/recommended-downloads", response_model=RecommendedDownloadsResponse)
+def recommended_downloads_endpoint(
+    req: RecommendedDownloadsRequest,
+) -> RecommendedDownloadsResponse:
+    service = get_recommendation_service()
+    try:
+        return service.recommend(req)
+    except SeedNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "seed_not_found",
+                "message": str(exc),
+                "filepath": str(exc.filepath),
+            },
+        ) from exc
+    except SeedAnalysisRequiredError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "seed_analysis_required",
+                "message": str(exc),
+                "seed": RecommendationSeed(
+                    filepath=str(exc.filepath),
+                    status="required",
+                ).model_dump(),
+            },
+        ) from exc
 
 
 @app.get("/api/tracks", response_model=TracksResponse)
